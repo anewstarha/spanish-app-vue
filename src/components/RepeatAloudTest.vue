@@ -71,7 +71,6 @@ function toggleListening() {
         const audioBlob = new Blob(audioChunks.value, { type: mediaRecorder.value.mimeType });
         const formData = new FormData();
         formData.append('audio', audioBlob, 'recording.webm');
-        formData.append('mimeType', mediaRecorder.value.mimeType);
 
         try {
           const { data: { session } } = await supabase.auth.getSession();
