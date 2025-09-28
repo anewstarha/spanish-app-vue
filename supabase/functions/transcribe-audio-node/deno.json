@@ -1,0 +1,5 @@
+{
+  "imports": {
+    "microsoft-cognitiveservices-speech-sdk": "npm:microsoft-cognitiveservices-speech-sdk"
+  }
+}

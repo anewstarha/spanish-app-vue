@@ -54,7 +54,7 @@ function toggleListening() {
           if (!session) throw new Error("用户未认证");
 
           // 发送请求到您的后端函数
-          const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/transcribe-audio`, {
+          const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/transcribe-audio-node`, {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${session.access_token}` },
             body: formData,

@@ -17,6 +17,7 @@
     "@heroicons/vue": "^2.2.0",
     "@supabase/supabase-js": "^2.57.4",
     "diff": "^8.0.2",
+    "microsoft-cognitiveservices-speech-sdk": "^1.46.0",
     "pinia": "^3.0.3",
     "vue": "^3.5.18",
     "vue-router": "^4.5.1"
@@ -32,5 +33,18 @@
     "prettier": "3.6.2",
     "vite": "^7.0.6",
     "vite-plugin-vue-devtools": "^8.0.0"
-  }
+  },
+  "description": "This template should help get you started developing with Vue 3 in Vite.",
+  "main": "eslint.config.js",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/anewstarha/spanish-app-vue.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/anewstarha/spanish-app-vue/issues"
+  },
+  "homepage": "https://github.com/anewstarha/spanish-app-vue#readme"
 }

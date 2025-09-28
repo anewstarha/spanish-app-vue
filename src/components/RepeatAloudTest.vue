@@ -69,7 +69,7 @@ function toggleListening() {
         try {
           const { data: { session } } = await supabase.auth.getSession();
           if (!session) throw new Error("用户未认证");
-          const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/transcribe-audio`, {
+          const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/transcribe-audio-node`, {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${session.access_token}` },
             body: formData,

@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Azure 语音转文字 - 官方快速入门示例</title>
+    <script src="https://aka.ms/csspeech/js/sdk/speech.sdk.bundle.js"></script>
+</head>
+<body>
+
+    <h1>Azure 语音转文字 - 官方示例</h1>
+    <p>点击按钮后，请授权麦克风并开始说话。</p>
+
+    <button id="recognizeButton">开始识别</button>
+
+    <div style="margin-top: 20px;">
+        <strong>状态：</strong><span id="statusMessage">空闲</span>
+    </div>
+    <div style="margin-top: 10px;">
+        <strong>识别结果：</strong><p id="resultText" style="font-style: italic; color: #333; border: 1px solid #eee; padding: 10px; min-height: 50px;"></p>
+    </div>
+
+    <script>
+        // --- 1. 请在这里替换为您的密钥和区域 ---
+        const subscriptionKey = "9H9VGjzrbsY23D8XeeoZrd13pD3HD2kCWSIZowTHNNEZwPFXraxkJQQJ99BIACYeBjFXJ3w3AAAYACOGg5h1";
+        const serviceRegion = "eastus"; // 例如： "eastus"
+
+        // --- 2. 获取页面上的HTML元素 ---
+        const recognizeButton = document.getElementById('recognizeButton');
+        const statusMessage = document.getElementById('statusMessage');
+        const resultText = document.getElementById('resultText');
+
+        // --- 3. 核心语音识别逻辑 ---
+        recognizeButton.addEventListener('click', () => {
+            // 禁用按钮防止重复点击
+            recognizeButton.disabled = true;
+            resultText.textContent = "";
+            statusMessage.textContent = "请授权麦克风，准备识别...";
+
+            // 检查 SpeechSDK 是否已加载
+            if (typeof SpeechSDK === 'undefined') {
+                statusMessage.textContent = "错误: SpeechSDK 未加载。";
+                console.error("SpeechSDK not found. Check if the script loaded correctly.");
+                recognizeButton.disabled = false;
+                return;
+            }
+
+            // 使用您的密钥和区域创建语音配置
+            const speechConfig = SpeechSDK.SpeechConfig.fromSubscription(subscriptionKey, serviceRegion);
+            // 设置识别语言 (这里以西班牙语为例，您可以根据需要修改)
+            speechConfig.speechRecognitionLanguage = "es-ES";
+
+            // 从默认麦克风获取音频
+            const audioConfig = SpeechSDK.AudioConfig.fromDefaultMicrophoneInput();
+
+            // 创建语音识别器
+            const recognizer = new SpeechSDK.SpeechRecognizer(speechConfig, audioConfig);
+
+            statusMessage.textContent = "请说话...";
+            console.log("Speak into your microphone.");
+
+            // 开始单次识别。它会识别一句话，直到检测到静默后停止。
+            recognizer.recognizeOnceAsync(result => {
+                console.log(`RECOGNIZED: Text=${result.text}`);
+                statusMessage.textContent = "识别完成！";
+
+                // 根据识别结果的状态更新页面
+                switch (result.reason) {
+                    case SpeechSDK.ResultReason.RecognizedSpeech:
+                        resultText.textContent = `识别成功: "${result.text}"`;
+                        break;
+                    case SpeechSDK.ResultReason.NoMatch:
+                        resultText.textContent = "语音无法识别。";
+                        break;
+                    case SpeechSDK.ResultReason.Canceled:
+                        const cancellation = SpeechSDK.CancellationDetails.fromResult(result);
+                        resultText.textContent = `识别被取消。原因: ${cancellation.reason}`;
+                        if (cancellation.reason === SpeechSDK.CancellationReason.Error) {
+                            resultText.textContent += `\n错误码: ${cancellation.ErrorCode}`;
+                            resultText.textContent += `\n错误详情: ${cancellation.errorDetails}`;
+                            console.error(`CANCELED: ErrorCode=${cancellation.ErrorCode}`);
+                            console.error(`CANCELED: ErrorDetails=${cancellation.errorDetails}`);
+                        }
+                        break;
+                }
+
+                // 重新启用按钮
+                recognizeButton.disabled = false;
+                // 关闭识别器，释放资源
+                recognizer.close();
+
+            }, error => {
+                console.error(`ERROR: ${error}`);
+                resultText.textContent = `发生错误: ${error}`;
+                // 重新启用按钮
+                recognizeButton.disabled = false;
+                 // 关闭识别器，释放资源
+                recognizer.close();
+            });
+        });
+    </script>
+
+</body>
+</html>
