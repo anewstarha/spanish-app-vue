@@ -1,0 +1,455 @@
+<script setup>
+// 1. 从 vue 的导入中移除 shallowRef
+import { ref, computed, watch } from 'vue';
+import { useStudyStore } from '@/stores/studyStore';
+import { useUserStore } from '@/stores/userStore';
+import { useRouter } from 'vue-router';
+import * as speechService from '@/services/speechService';
+import AiExplanationModal from '@/components/AiExplanationModal.vue';
+import {
+  PlayCircleIcon,
+  SpeakerWaveIcon,
+  ViewColumnsIcon,
+  ArrowLeftCircleIcon,
+  ArrowRightCircleIcon,
+} from '@heroicons/vue/24/solid';
+import { getCoreWordsFromSentence } from '@/utils/textUtils';
+
+// 导入所有测试组件
+import SentenceScrambleTest from '@/components/SentenceScrambleTest.vue';
+import VocabularyTest from '@/components/VocabularyTest.vue';
+import DictationTest from '@/components/DictationTest.vue';
+import ReadAloudTest from '@/components/ReadAloudTest.vue';
+import RepeatAloudTest from '@/components/RepeatAloudTest.vue';
+
+const store = useStudyStore();
+const userStore = useUserStore();
+const router = useRouter();
+
+// --- 状态管理 ---
+const isPlaylistVisible = ref(false);
+const activeReader = ref(null);
+const isModalVisible = ref(false);
+const selectedWord = ref(null);
+const wordExplanation = ref(null);
+const isExplanationLoading = ref(false);
+
+const mode = ref('studying'); // 'studying' | 'quizzing'
+const testResults = ref([]);
+
+// --- 核心改动：测试题随机化 ---
+
+// 2. 直接使用组件，不再用 shallowRef 包裹
+const TEST_COMPONENTS = {
+  scramble: SentenceScrambleTest,
+  vocabulary: VocabularyTest,
+  dictation: DictationTest,
+  read_aloud: ReadAloudTest,
+  repeat_aloud: RepeatAloudTest,
+};
+const testOrder = ref([]); // 存储当前句子的随机题目顺序
+const currentTestIndex = ref(0); // 当前进行到第几题 (0-4)
+
+// --- 辅助函数：洗牌算法 ---
+function shuffleArray(array) {
+  for (let i = array.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [array[i], array[j]] = [array[j], array[i]];
+  }
+  return array;
+}
+
+// --- 计算属性 ---
+const currentTestComponent = computed(() => {
+    if (mode.value === 'quizzing' && testOrder.value.length > 0) {
+        const testKey = testOrder.value[currentTestIndex.value];
+        return TEST_COMPONENTS[testKey];
+    }
+    return null;
+});
+
+const currentSentenceWords = computed(() => {
+  if (!store.currentSentence || store.allWords.length === 0) return [];
+  const wordsInSentence = new Set(getCoreWordsFromSentence(store.currentSentence.spanish_text));
+  return store.allWords.filter(wordObj =>
+    wordsInSentence.has(wordObj.spanish_word.toLowerCase())
+  );
+});
+
+// --- 监听与方法 ---
+watch(() => store.currentSentence, (newSentence) => {
+  if (newSentence) {
+    mode.value = 'studying';
+    currentTestIndex.value = 0;
+    testResults.value = [];
+    // 为新句子生成新的随机题目顺序
+    testOrder.value = shuffleArray(Object.keys(TEST_COMPONENTS));
+  }
+}, { immediate: true });
+
+// 开发环境热更新修复
+if (import.meta.env.PROD) {
+  if (store.allSentencesInSession.length === 0 && !store.isLoading) {
+    router.replace({ name: 'study' });
+  }
+}
+
+function handleJumpTo(index) {
+  store.jumpTo(index);
+  isPlaylistVisible.value = false;
+}
+
+function handlePlay(type) {
+  if (!store.currentSentence) return;
+  if (activeReader.value === type) {
+    speechService.cancel();
+    activeReader.value = null;
+    return;
+  }
+  const text = store.currentSentence.spanish_text;
+  const options = {
+    isSlow: type === 'slow',
+    onStart: () => activeReader.value = type,
+    onEnd: () => activeReader.value = null,
+  };
+  if (type === 'word') {
+    speechService.speakWordByWord(text, options);
+  } else {
+    speechService.speak(text, options);
+  }
+}
+
+async function showWordExplanation(word) {
+  selectedWord.value = word;
+  isModalVisible.value = true;
+  wordExplanation.value = null;
+  isExplanationLoading.value = false;
+  if (word.ai_explanation && Object.keys(word.ai_explanation).length > 0) {
+    wordExplanation.value = word.ai_explanation;
+    return;
+  }
+  isExplanationLoading.value = true;
+  const newExplanation = await speechService.getWordExplanation(word);
+  wordExplanation.value = newExplanation;
+  isExplanationLoading.value = false;
+  if (newExplanation) {
+    store.cacheWordExplanation({ wordId: word.id, explanation: newExplanation });
+  }
+}
+
+async function advance() {
+  if (mode.value === 'studying') {
+    mode.value = 'quizzing';
+    currentTestIndex.value = 0;
+  } else if (mode.value === 'quizzing') {
+    // 检查是否是最后一个测试
+    if (currentTestIndex.value < testOrder.value.length - 1) {
+      currentTestIndex.value++;
+    } else {
+      // 完成所有测试，更新状态并进入下一句
+      await store.updateSentenceStatus(store.currentSentence.id, testResults.value);
+      if (store.progress.current < store.progress.total) {
+        store.goToNext();
+      } else {
+        await userStore.updateSessionProgress({
+          current_session_ids: null,
+          current_session_progress: null
+        });
+        alert("¡Felicidades! Has completado todo el estudio y las pruebas de esta ronda.");
+        router.push({ name: 'study' });
+      }
+    }
+  }
+}
+
+function goBack() {
+  if (mode.value === 'quizzing') {
+    if (currentTestIndex.value > 0) {
+      currentTestIndex.value--;
+    } else {
+      mode.value = 'studying';
+    }
+  } else {
+    if (store.progress.current > 1) {
+        store.goToPrev();
+    }
+  }
+}
+
+function handleTestAnswered(result) {
+  const newResults = [...testResults.value];
+  newResults[currentTestIndex.value] = result;
+  testResults.value = newResults;
+}
+
+function replayTestAudio() {
+  if (mode.value !== 'quizzing' || !store.currentSentence) return;
+  const options = { onStart: () => activeReader.value = 'replay', onEnd: () => activeReader.value = null };
+  const currentTestKey = testOrder.value[currentTestIndex.value];
+
+  if (currentTestKey === 'vocabulary') {
+    const coreWords = getCoreWordsFromSentence(store.currentSentence.spanish_text);
+    const wordObj = store.allWords.find(w => w.spanish_word.toLowerCase() === coreWords[0]?.toLowerCase());
+    if(wordObj) speechService.speak(wordObj.spanish_word, options);
+  } else {
+    // 对所有其他需要音频的测试（听写、复述）都播放整句
+    speechService.speak(store.currentSentence.spanish_text, options);
+  }
+}
+</script>
+
+<template>
+  <div class="session-view-container">
+    <header class="session-header">
+       <button @click="router.back()" class="icon-btn">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg>
+      </button>
+      <div class="progress-text">{{ store.progress.current }} / {{ store.progress.total }}</div>
+      <button @click="isPlaylistVisible = true" class="icon-btn">
+        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
+      </button>
+    </header>
+
+    <main class="session-main">
+      <div v-if="store.isLoading" class="loading-indicator">Cargando sesión...</div>
+      <template v-else-if="store.currentSentence">
+
+        <div v-if="mode === 'studying'">
+          <div class="study-card">
+            <div class="card-content">
+              <p class="spanish-text">{{ store.currentSentence.spanish_text }}</p>
+              <p class="chinese-text">{{ store.currentSentence.chinese_translation }}</p>
+            </div>
+          </div>
+          <div class="collapsible-area">
+            <details class="collapsible-item">
+              <summary>Lista de palabras ({{ currentSentenceWords.length }})</summary>
+              <div class="collapsible-content">
+                <ul v-if="currentSentenceWords.length > 0" class="words-list">
+                  <li v-for="word in currentSentenceWords" :key="word.spanish_word" class="word-item">
+                    <div class="word-details" @click="showWordExplanation(word)">
+                      <span class="word-spanish">{{ word.spanish_word }}</span>
+                      <span class="word-chinese">{{ word.chinese_translation }}</span>
+                    </div>
+                    <div class="word-actions">
+                      <button @click="speechService.speak(word.spanish_word)" class="icon-btn-small" title="朗读">
+                        <SpeakerWaveIcon />
+                      </button>
+                    </div>
+                  </li>
+                </ul>
+                <p v-else class="empty-list">No hay palabras de alta frecuencia en esta frase.</p>
+              </div>
+            </details>
+            <details class="collapsible-item">
+              <summary>Explicación de IA</summary>
+              <div class="collapsible-content">
+                <p v-if="store.currentSentence.ai_notes" v-html="store.currentSentence.ai_notes.replace(/\n/g, '<br>')"></p>
+                <p v-else>No hay explicación de IA para esta frase.</p>
+              </div>
+            </details>
+          </div>
+        </div>
+
+        <div v-else-if="mode === 'quizzing'" class="quiz-area">
+            <div class="quiz-progress-header">
+                第 {{ currentTestIndex + 1 }} / {{ testOrder.length }} 题
+            </div>
+            <component
+                :is="currentTestComponent"
+                :sentence="store.currentSentence"
+                :all-words="store.allWords"
+                @answered="handleTestAnswered"
+            />
+        </div>
+
+      </template>
+    </main>
+
+    <footer class="session-footer">
+      <template v-if="mode === 'studying'">
+        <div class="footer-nav-item" @click="goBack" :class="{ disabled: store.progress.current <= 1 }">
+          <ArrowLeftCircleIcon class="footer-icon" />
+          <span class="footer-label">Anterior</span>
+        </div>
+        <div class="footer-nav-item" @click="handlePlay('slow')" :class="{ active: activeReader === 'slow' }">
+          <SpeakerWaveIcon class="footer-icon" />
+          <span class="footer-label">Lento</span>
+        </div>
+        <div class="footer-nav-item" @click="handlePlay('normal')" :class="{ active: activeReader === 'normal' }">
+          <PlayCircleIcon class="footer-icon" />
+          <span class="footer-label">Leer</span>
+        </div>
+        <div class="footer-nav-item" @click="handlePlay('word')" :class="{ active: activeReader === 'word' }">
+          <ViewColumnsIcon class="footer-icon" />
+          <span class="footer-label">Palabras</span>
+        </div>
+        <div class="footer-nav-item" @click="mode = 'quizzing'">
+           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" class="footer-icon"><path d="M21.722 8.65362V6.23999H19.3084V8.65362H21.722ZM18.0947 17.76V10.453H15.6811V17.76H18.0947ZM14.4674 17.76V2.24H12.0537V17.76H14.4674ZM10.84 17.76V6.23999H8.42633V17.76H10.84ZM7.21264 17.76V10.453H4.79899V17.76H7.21264ZM3.58529 8.65362V6.23999H1.17163V8.65362H3.58529Z"></path></svg>
+           <span class="footer-label">Prueba</span>
+        </div>
+      </template>
+
+      <template v-else-if="mode === 'quizzing'">
+        <div class="footer-nav-item" @click="goBack">
+          <ArrowLeftCircleIcon class="footer-icon" />
+          <span class="footer-label">Anterior</span>
+        </div>
+        <div class="footer-nav-item" @click="replayTestAudio" :class="{ active: activeReader === 'replay' }">
+          <PlayCircleIcon class="footer-icon" />
+          <span class="footer-label">Repetir</span>
+        </div>
+        <div class="footer-nav-item" @click="advance" :class="{ disabled: !testResults[currentTestIndex] }">
+          <ArrowRightCircleIcon class="footer-icon" />
+          <span class="footer-label">{{ currentTestIndex < testOrder.length - 1 ? 'Siguiente' : 'Próxima Frase' }}</span>
+        </div>
+      </template>
+    </footer>
+
+    <div v-if="isPlaylistVisible" class="playlist-overlay" @click="isPlaylistVisible = false">
+      <div class="playlist-modal" @click.stop>
+        <h3>Lista de frases ({{ store.progress.total }})</h3>
+        <ul class="playlist-content">
+          <li v-for="(sentence, index) in store.allSentencesInSession"
+              :key="sentence.id"
+              :class="{ active: index === store.currentSentenceIndex }"
+              @click="handleJumpTo(index)">
+            <div class="playlist-sentence">
+              <span class="playlist-spanish">{{ sentence.spanish_text }}</span>
+              <span class="playlist-chinese">{{ sentence.chinese_translation }}</span>
+            </div>
+            <span v-if="index === store.currentSentenceIndex" class="current-indicator">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"></polygon></svg>
+            </span>
+          </li>
+        </ul>
+      </div>
+    </div>
+
+    <AiExplanationModal
+      v-if="isModalVisible"
+      :word="selectedWord"
+      :explanation="wordExplanation"
+      :is-loading="isExplanationLoading"
+      @close="isModalVisible = false"
+    />
+  </div>
+</template>
+
+<style scoped>
+/* 省略大部分未改动的CSS，只列出新增或修改的 */
+.session-view-container {
+  display: flex; flex-direction: column; height: 100%; background-color: #f2f2f7;
+}
+.session-header {
+  display: flex; justify-content: space-between; align-items: center; padding: 10px 15px;
+  flex-shrink: 0; background-color: #ffffff; border-bottom: 1px solid #e5e5e5;
+  position: sticky; top: 0; z-index: 10;
+}
+.progress-text { font-size: 16px; font-weight: 600; color: #333; }
+.icon-btn { background: none; border: none; cursor: pointer; padding: 5px; color: #333; }
+.session-main {
+  flex-grow: 1; overflow-y: auto; padding: 20px 15px; padding-bottom: 100px;
+}
+.loading-indicator { text-align: center; color: #888; padding: 40px; }
+.study-card {
+  background-color: #ffffff; border-radius: 18px; padding: 24px 20px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08); text-align: center;
+}
+.card-content { margin-bottom: 10px; }
+.spanish-text { font-size: 24px; font-weight: 600; color: #333; margin: 0 0 15px 0; line-height: 1.4; }
+.chinese-text { font-size: 16px; color: #8A94A6; margin: 0; }
+.collapsible-area { margin-top: 20px; display: flex; flex-direction: column; gap: 10px; }
+.collapsible-item { background-color: #fff; border-radius: 12px; border: 1px solid #e5e5e5; }
+.collapsible-item summary { padding: 12px 15px; font-weight: 600; cursor: pointer; list-style: none; }
+.collapsible-item summary::-webkit-details-marker { display: none; }
+.collapsible-content { padding: 0 15px 15px; color: #8A94A6; font-size: 14px; border-top: 1px solid #e5e5e5; }
+.collapsible-content p { margin: 0; }
+.words-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; }
+.word-item { display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid #f0f0f0; }
+.word-item:last-child { border-bottom: none; }
+.word-details { cursor: pointer; flex-grow: 1; }
+.word-spanish { font-weight: 600; color: #333; }
+.word-chinese { color: #8A94A6; font-size: 13px; margin-left: 8px; }
+.word-actions { display: flex; align-items: center; }
+.icon-btn-small { background: none; border: none; cursor: pointer; color: #a0a0a0; padding: 5px; width: 28px; height: 28px; }
+.icon-btn-small:hover { color: #4A90E2; }
+.icon-btn-small svg { width: 18px; height: 18px; }
+
+/* 新增：测试进度标题 */
+.quiz-progress-header {
+    text-align: center;
+    color: #8A94A6;
+    font-weight: 600;
+    margin-bottom: 15px;
+}
+.quiz-area { margin-top: 20px; }
+.session-footer {
+  display: flex;
+  justify-content: space-around;
+  align-items: stretch;
+  padding: 5px 0;
+  padding-bottom: calc(5px + env(safe-area-inset-bottom));
+  background-color: #ffffff;
+  border-top: 1px solid #e5e5e5;
+  box-shadow: 0 -2px 10px rgba(0,0,0,0.05);
+}
+.footer-nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  padding: 5px 0;
+  cursor: pointer;
+  color: #8A94A6;
+  transition: color 0.2s ease;
+}
+.footer-nav-item:hover {
+  color: #4A90E2;
+}
+.footer-nav-item.disabled {
+  color: #e0e0e0;
+  pointer-events: none;
+}
+.footer-nav-item.active {
+  color: #4A90E2;
+}
+.footer-icon {
+  width: 24px;
+  height: 24px;
+  margin-bottom: 2px;
+}
+.footer-label {
+  font-size: 11px;
+  font-weight: 500;
+}
+.playlist-overlay {
+  position: fixed; top: 0; left: 0; right: 0; bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex; flex-direction: column; justify-content: flex-end; z-index: 1000;
+}
+.playlist-modal {
+  background-color: #fff; border-top-left-radius: 20px; border-top-right-radius: 20px;
+  max-height: 70%; display: flex; flex-direction: column; animation: slide-up 0.3s ease;
+}
+.playlist-modal h3 {
+  padding: 15px; margin: 0; font-size: 16px; text-align: center;
+  border-bottom: 1px solid #e5e5e5; flex-shrink: 0;
+}
+.playlist-content { overflow-y: auto; padding: 0; margin: 0; list-style: none; }
+.playlist-content li {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: 12px 15px; border-bottom: 1px solid #f0f0f0; cursor: pointer;
+}
+.playlist-content li:last-child { border-bottom: none; }
+.playlist-content li.active { color: #4A90E2; font-weight: 600; }
+.playlist-sentence { display: flex; flex-direction: column; gap: 2px; overflow: hidden; }
+.playlist-spanish { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 14px; }
+.playlist-chinese { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-size: 12px; color: #8A94A6; }
+.current-indicator { color: #4A90E2; flex-shrink: 0; margin-left: 10px; }
+@keyframes slide-up { from { transform: translateY(100%); } to { transform: translateY(0); } }
+</style>
+```eof
+
+请用这份更新后的 `StudySessionView.vue` 代码替换您的旧文件。这个版本已经正确地移除了 `shallowRef`，应该可以解决您遇到的报错，让随机化的五种测试题正常显示出来。
