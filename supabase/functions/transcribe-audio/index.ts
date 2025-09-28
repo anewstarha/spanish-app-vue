@@ -30,15 +30,15 @@ serve(async (req) => {
         throw new Error("MIME type could not be determined from the uploaded audio file.");
     }
 
-    const azureUrl = `https://${azureRegion}.stt.speech.microsoft.com/speech/recognition/conversation/cognitiveservices/v1?language=es-ES&format=simple`;
+    // --- 【核心修改】---
+    // 将 API 接口从 "conversation" 更换为更适合一次性语音识别的 "dictation"
+    const azureUrl = `https://${azureRegion}.stt.speech.microsoft.com/speech/recognition/dictation/cognitiveservices/v1?language=es-ES&format=simple`;
 
     const response = await fetch(azureUrl, {
       method: 'POST',
       headers: {
         'Ocp-Apim-Subscription-Key': azureKey,
         'Content-Type': mimeType,
-        // --- 【核心修改】---
-        // 添加一个标准的 User-Agent 头，让请求看起来更像一个常规客户端
         'User-Agent': 'Supabase/Deno-Fetch'
       },
       body: audioBlob,
@@ -51,7 +51,7 @@ serve(async (req) => {
 
     const result = await response.json();
 
-    // 直接返回 Azure 的完整结果，让前端处理
+    // 直接返回 Azure 的完整结果
     return new Response(JSON.stringify(result), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 200,
