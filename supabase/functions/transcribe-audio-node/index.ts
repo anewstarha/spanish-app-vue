@@ -8,46 +8,38 @@ import {
   PushAudioInputStream,
 } from 'microsoft-cognitiveservices-speech-sdk'
 
-// CORS 头
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 }
 
 serve(async (req) => {
-  // 预检请求处理
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders })
   }
 
   try {
-    // 获取 Azure 凭证
     const azureKey = Deno.env.get('AZURE_SPEECH_KEY')
     const azureRegion = Deno.env.get('AZURE_SPEECH_REGION')
-
     if (!azureKey || !azureRegion) {
       throw new Error('Azure credentials not found in function secrets.')
     }
 
-    // 获取前端上传的音频数据
     const formData = await req.formData()
     const audioBlob = formData.get('audio')
-
     if (!audioBlob || !(audioBlob instanceof File)) {
       throw new Error("Audio blob not found in the request.")
     }
     const audioBuffer = await audioBlob.arrayBuffer()
 
-    // 使用 Azure Speech SDK 进行识别
     const result = await recognizeSpeechFromBuffer(audioBuffer, azureKey, azureRegion)
 
-    // 将SDK返回的结果发送回前端
     return new Response(JSON.stringify(result), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 200,
     })
   } catch (error) {
-    console.error('Critical error in transcribe-audio-node function:', error.message)
+    console.error('Critical error in transcribe-audio function:', error.message)
     return new Response(JSON.stringify({ error: error.message }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 500,
@@ -55,9 +47,6 @@ serve(async (req) => {
   }
 })
 
-/**
- * 使用 Azure Speech SDK 从音频 Buffer 中识别语音
- */
 function recognizeSpeechFromBuffer(
   audioBuffer: ArrayBuffer,
   azureKey: string,
@@ -68,7 +57,10 @@ function recognizeSpeechFromBuffer(
     const speechConfig = SpeechConfig.fromSubscription(azureKey, azureRegion)
     speechConfig.speechRecognitionLanguage = 'es-ES'
 
+    // 因为我们现在发送的是一个完整的WAV文件，SDK可以自动识别其头部信息。
+    // 我们不再需要手动指定音频格式。
     const pushStream: PushAudioInputStream = AudioInputStream.createPushStream()
+
     pushStream.write(audioBuffer)
     pushStream.close()
 
@@ -78,7 +70,6 @@ function recognizeSpeechFromBuffer(
     recognizer.recognizeOnceAsync(
       (res) => {
         let displayResult: { RecognitionStatus: string; DisplayText: string };
-
         if (res.reason === ResultReason.RecognizedSpeech) {
           displayResult = { RecognitionStatus: 'Success', DisplayText: res.text };
         } else {
