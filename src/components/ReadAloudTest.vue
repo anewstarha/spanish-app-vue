@@ -18,7 +18,6 @@ const isProcessing = ref(false);
 const mediaRecorder = ref(null);
 const audioChunks = ref([]);
 
-// 这是一个调试专用函数，用于捕获浏览器生成的音频数据
 function toggleListening() {
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
     error.value = '浏览器不支持麦克风功能。';
@@ -34,31 +33,60 @@ function toggleListening() {
   navigator.mediaDevices.getUserMedia({ audio: true })
     .then(stream => {
       audioChunks.value = [];
+      // 使用推荐的MIME类型和比特率
       const options = { mimeType: 'audio/webm;codecs=opus', audioBitsPerSecond: 128000 };
       mediaRecorder.value = new MediaRecorder(stream, options);
       mediaRecorder.value.ondataavailable = event => {
         audioChunks.value.push(event.data);
       };
 
-      // --- 【核心调试逻辑】---
+      // --- 【核心修改】---
+      // 替换了原来的调试逻辑，现在会实际发送请求到后端
       mediaRecorder.value.onstop = async () => {
+        isProcessing.value = true; // 开始处理状态
         const audioBlob = new Blob(audioChunks.value, { type: mediaRecorder.value.mimeType });
+        const formData = new FormData();
+        formData.append('audio', audioBlob, 'recording.webm');
 
-        // 将 Blob 转换为 Base64 字符串并打印到控制台
-        const reader = new FileReader();
-        reader.onload = function(event) {
-          console.log("--- COPY THE TEXT BELOW ---");
-          // 我们只取 Base64 数据部分
-          console.log(event.target.result.split(',')[1]);
-          console.log("--- COPY THE TEXT ABOVE ---");
-        };
-        reader.readAsDataURL(audioBlob);
+        try {
+          // 获取 Supabase 用户 session 用于认证
+          const { data: { session } } = await supabase.auth.getSession();
+          if (!session) throw new Error("用户未认证");
 
-        // 为避免混淆，我们暂时不发送请求到后端
-        console.log("调试模式：已捕获音频数据到控制台，并未发送到后端。");
-        isProcessing.value = false;
-        stream.getTracks().forEach(track => track.stop());
+          // 发送请求到您的后端函数
+          const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/transcribe-audio`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${session.access_token}` },
+            body: formData,
+          });
+
+          if (!response.ok) {
+              const errorBody = await response.json();
+              throw new Error(errorBody.error || `请求失败，状态码: ${response.status}`);
+          }
+
+          const responseData = await response.json();
+
+          // 检查 Azure 返回的状态
+          if (responseData.RecognitionStatus === 'Success') {
+              transcript.value = responseData.DisplayText;
+          } else {
+              // 如果识别失败，给出一个提示性文本
+              transcript.value = `[识别失败: ${responseData.RecognitionStatus || 'Unknown'}]`;
+          }
+
+          // 调用答案检查函数
+          checkAnswer();
+
+        } catch (e) {
+          error.value = `语音识别失败: ${e.message}`;
+          emit('answered', { isCorrect: false }); // 触发 answered 事件
+        } finally {
+          isProcessing.value = false; // 结束处理状态
+          stream.getTracks().forEach(track => track.stop()); // 关闭媒体流
+        }
       };
+      // --- 【修改结束】---
 
       mediaRecorder.value.start();
       isListening.value = true;

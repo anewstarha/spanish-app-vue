@@ -30,9 +30,11 @@ serve(async (req) => {
         throw new Error("MIME type could not be determined from the uploaded audio file.");
     }
 
-    // --- 【核心修改】---
-    // 将 API 接口从 "conversation" 更换为更适合一次性语音识别的 "dictation"
     const azureUrl = `https://${azureRegion}.stt.speech.microsoft.com/speech/recognition/dictation/cognitiveservices/v1?language=es-ES&format=simple`;
+
+    // --- 【核心修改】---
+    // 将 File 对象转换为 ArrayBuffer，以确保发送的是纯粹的二进制数据。
+    const audioData = await audioBlob.arrayBuffer();
 
     const response = await fetch(azureUrl, {
       method: 'POST',
@@ -41,17 +43,22 @@ serve(async (req) => {
         'Content-Type': mimeType,
         'User-Agent': 'Supabase/Deno-Fetch'
       },
-      body: audioBlob,
+      body: audioData, // 使用转换后的 ArrayBuffer
     });
 
     if (!response.ok) {
       const errorBody = await response.text();
-      throw new Error(`Azure API Error (${response.status}): ${errorBody}`);
+      // 尝试解析为JSON，如果Azure返回了结构化错误
+      try {
+        const jsonError = JSON.parse(errorBody);
+        throw new Error(`Azure API Error (${response.status}): ${jsonError.message || errorBody}`);
+      } catch(e) {
+        throw new Error(`Azure API Error (${response.status}): ${errorBody}`);
+      }
     }
 
     const result = await response.json();
 
-    // 直接返回 Azure 的完整结果
     return new Response(JSON.stringify(result), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       status: 200,
