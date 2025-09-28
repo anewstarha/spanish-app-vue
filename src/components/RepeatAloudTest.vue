@@ -34,15 +34,11 @@ function handlePlay() {
 }
 
 function toggleListening() {
-  // 1. 先进行功能和安全上下文检测
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
     error.value = '您的浏览器不支持麦克风功能，或未在安全环境下运行 (HTTPS/localhost)。';
-    // 因为这是一个会阻止测试进行的硬性错误，我们直接在这里就将组件状态设为“已回答”
     emit('answered', { isCorrect: false, error: 'no_mic_support' });
     return;
   }
-
-  // 2. 处理停止录音的逻辑
   if (isListening.value) {
     if (mediaRecorder.value && mediaRecorder.value.state === 'recording') {
       mediaRecorder.value.stop();
@@ -50,8 +46,6 @@ function toggleListening() {
     isListening.value = false;
     return;
   }
-
-  // 3. 处理开始录音的逻辑 (所有括号都已配对)
   navigator.mediaDevices.getUserMedia({ audio: true })
     .then(stream => {
       transcript.value = '';
@@ -60,39 +54,38 @@ function toggleListening() {
       result.value = null;
       audioChunks.value = [];
 
-      mediaRecorder.value = new MediaRecorder(stream);
+      // --- 【核心修改】---
+      const options = { mimeType: 'audio/webm;codecs=opus', audioBitsPerSecond: 128000 };
+      mediaRecorder.value = new MediaRecorder(stream, options);
 
       mediaRecorder.value.ondataavailable = event => {
         audioChunks.value.push(event.data);
       };
-
       mediaRecorder.value.onstop = async () => {
         isProcessing.value = true;
         const audioBlob = new Blob(audioChunks.value, { type: mediaRecorder.value.mimeType });
         const formData = new FormData();
         formData.append('audio', audioBlob, 'recording.webm');
-
         try {
           const { data: { session } } = await supabase.auth.getSession();
           if (!session) throw new Error("用户未认证");
-
           const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/transcribe-audio`, {
             method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${session.access_token}`
-            },
+            headers: { 'Authorization': `Bearer ${session.access_token}` },
             body: formData,
           });
-
           if (!response.ok) {
               const errorBody = await response.json();
               throw new Error(errorBody.error || `请求失败，状态码: ${response.status}`);
           }
-
           const responseData = await response.json();
-          transcript.value = responseData.transcript;
+          // 前端也增加对 RecognitionStatus 的判断
+          if (responseData.RecognitionStatus === 'Success') {
+              transcript.value = responseData.DisplayText;
+          } else {
+              transcript.value = `[识别失败: ${responseData.RecognitionStatus || 'Unknown'}]`;
+          }
           checkAnswer();
-
         } catch (e) {
           error.value = `语音识别失败: ${e.message}`;
           emit('answered', { isCorrect: false });
@@ -101,7 +94,6 @@ function toggleListening() {
           stream.getTracks().forEach(track => track.stop());
         }
       };
-
       mediaRecorder.value.start();
       isListening.value = true;
     })

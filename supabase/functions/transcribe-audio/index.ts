@@ -15,21 +15,17 @@ serve(async (req) => {
     const azureRegion = Deno.env.get('AZURE_SPEECH_REGION');
 
     if (!azureKey || !azureRegion) {
-      throw new Error('Azure credentials not found in Supabase function environment variables.');
+      throw new Error('Azure credentials not found in Supabase function secrets.');
     }
 
     const formData = await req.formData();
-    const audioBlob = formData.get('audio'); // as FormDataEntryValue;
+    const audioBlob = formData.get('audio');
 
     if (!audioBlob || !(audioBlob instanceof File)) {
       throw new Error("Audio blob not found in the request.");
     }
 
-    // --- 【核心修改】---
-    // 不再从 formData 读取独立的 mimeType 字段，
-    // 而是直接从接收到的文件对象中获取它的类型。这更可靠！
     const mimeType = audioBlob.type;
-
     if (!mimeType) {
         throw new Error("MIME type could not be determined from the uploaded audio file.");
     }
@@ -41,6 +37,9 @@ serve(async (req) => {
       headers: {
         'Ocp-Apim-Subscription-Key': azureKey,
         'Content-Type': mimeType,
+        // --- 【核心修改】---
+        // 添加一个标准的 User-Agent 头，让请求看起来更像一个常规客户端
+        'User-Agent': 'Supabase/Deno-Fetch'
       },
       body: audioBlob,
     });
@@ -51,21 +50,12 @@ serve(async (req) => {
     }
 
     const result = await response.json();
-    console.log('Azure API Response:', JSON.stringify(result, null, 2));
 
-    if (result.RecognitionStatus === 'Success') {
-      const transcript = result.DisplayText || '';
-      return new Response(JSON.stringify({ transcript }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        status: 200,
-      });
-    } else {
-      const failureReason = result.RecognitionStatus || 'UnknownRecognitionFailure';
-       return new Response(JSON.stringify({ transcript: '', reason: failureReason }), {
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          status: 200,
-      });
-    }
+    // 直接返回 Azure 的完整结果，让前端处理
+    return new Response(JSON.stringify(result), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      status: 200,
+    });
 
   } catch (error) {
     console.error('Critical error in transcribe-audio function:', error.message);
