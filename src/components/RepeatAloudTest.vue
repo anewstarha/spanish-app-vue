@@ -5,83 +5,118 @@ import * as speechService from '@/services/speechService';
 import { diffWords } from 'diff';
 import { supabase } from '@/supabase';
 
-// <--- 从这里开始是新的录音逻辑 --->
+// <--- 从这里开始是最终验证成功的录音逻辑 --->
+let mediaRecorder;
+let audioChunks = [];
 let audioContext;
-let stream;
-let processor;
-let audioData = [];
-const sampleRate = 16000; // 使用16kHz采样率，这是语音识别的黄金标准
+const TARGET_SAMPLE_RATE = 16000;
 
-function startAudioRecording() {
-  audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate });
-  return navigator.mediaDevices.getUserMedia({ audio: { sampleRate, channelCount: 1 } })
-    .then(micStream => {
-      stream = micStream;
-      const source = audioContext.createMediaStreamSource(stream);
-      processor = audioContext.createScriptProcessor(4096, 1, 1);
-      processor.onaudioprocess = (e) => {
-        audioData.push(...e.inputBuffer.getChannelData(0));
-      };
-      source.connect(processor);
-      processor.connect(audioContext.destination);
-      isListening.value = true;
-    });
+async function startAudioRecording() {
+  const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+  mediaRecorder = new MediaRecorder(stream);
+  audioChunks = [];
+  mediaRecorder.ondataavailable = e => audioChunks.push(e.data);
+  mediaRecorder.onstop = () => {
+    processAndSendAudio();
+    stream.getTracks().forEach(track => track.stop());
+  };
+  mediaRecorder.start();
+  isListening.value = true;
 }
 
 function stopAudioRecording() {
-  if (stream) {
-    stream.getTracks().forEach(track => track.stop());
-  }
-  if (processor) {
-    processor.disconnect();
-  }
-  if (audioContext && audioContext.state !== 'closed') {
-    audioContext.close();
+  if (mediaRecorder && mediaRecorder.state === 'recording') {
+    mediaRecorder.stop();
   }
   isListening.value = false;
-
-  // 将捕获的原始Float32数据编码为WAV格式的Blob
-  const wavBlob = encodeWAV(audioData, sampleRate);
-  return wavBlob;
 }
 
-// 辅助函数：将PCM Float32数据编码为WAV格式
-function encodeWAV(samples, sampleRate) {
-  const buffer = new ArrayBuffer(44 + samples.length * 2);
-  const view = new DataView(buffer);
+async function processAndSendAudio() {
+  isProcessing.value = true;
+  statusDiv.textContent = '正在处理音频...'; // 假设有一个statusDiv用于显示状态
+  const rawBlob = new Blob(audioChunks, { type: mediaRecorder.mimeType });
 
-  function writeString(view, offset, string) {
-    for (let i = 0; i < string.length; i++) {
-      view.setUint8(offset + i, string.charCodeAt(i));
-    }
-  }
+  if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
+  const arrayBuffer = await rawBlob.arrayBuffer();
+  const originalAudioBuffer = await audioContext.decodeAudioData(arrayBuffer);
 
-  function floatTo16BitPCM(output, offset, input) {
-    for (let i = 0; i < input.length; i++, offset += 2) {
-      const s = Math.max(-1, Math.min(1, input[i]));
-      output.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
-    }
-  }
+  const resampledAudioBuffer = await resampleAudioBuffer(originalAudioBuffer, TARGET_SAMPLE_RATE);
+  const wavBlob = encodeWAV(resampledAudioBuffer);
 
-  writeString(view, 0, 'RIFF');
-  view.setUint32(4, 36 + samples.length * 2, true);
-  writeString(view, 8, 'WAVE');
-  writeString(view, 12, 'fmt ');
-  view.setUint32(16, 16, true);
-  view.setUint16(20, 1, true);
-  view.setUint16(22, 1, true); // channel
-  view.setUint32(24, sampleRate, true);
-  view.setUint32(28, sampleRate * 2, true);
-  view.setUint16(32, 2, true);
-  view.setUint16(34, 16, true);
-  writeString(view, 36, 'data');
-  view.setUint32(40, samples.length * 2, true);
-  floatTo16BitPCM(view, 44, samples);
-
-  return new Blob([view], { type: 'audio/wav' });
+  await sendAudioToServer(wavBlob);
 }
 
-// <--- 到这里结束是新的录音逻辑 --->
+async function sendAudioToServer(audioBlob) {
+  const formData = new FormData();
+  formData.append('audio', audioBlob, 'recording.wav');
+
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) throw new Error("用户未认证");
+
+    const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/transcribe-audio`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${session.access_token}` },
+      body: formData,
+    });
+
+    if (!response.ok) {
+        const errorBody = await response.json();
+        throw new Error(errorBody.error || `请求失败，状态码: ${response.status}`);
+    }
+    const responseData = await response.json();
+
+    if (responseData.RecognitionStatus === 'Success') {
+        transcript.value = responseData.DisplayText;
+    } else {
+        transcript.value = `[识别失败: ${responseData.RecognitionStatus || 'Unknown'}]`;
+    }
+    checkAnswer();
+  } catch (e) {
+    error.value = `语音识别失败: ${e.message}`;
+    emit('answered', { isCorrect: false });
+  } finally {
+    isProcessing.value = false;
+  }
+}
+
+async function resampleAudioBuffer(audioBuffer, targetSampleRate) {
+    const numberOfChannels = audioBuffer.numberOfChannels;
+    const oldSampleRate = audioBuffer.sampleRate;
+    if (oldSampleRate === targetSampleRate) return audioBuffer;
+    const oldLength = audioBuffer.length;
+    const newLength = Math.round(oldLength * targetSampleRate / oldSampleRate);
+    const offlineContext = new OfflineAudioContext(numberOfChannels, newLength, targetSampleRate);
+    const bufferSource = offlineContext.createBufferSource();
+    bufferSource.buffer = audioBuffer;
+    bufferSource.connect(offlineContext.destination);
+    bufferSource.start(0);
+    return await offlineContext.startRendering();
+}
+
+function encodeWAV(audioBuffer) {
+    const numOfChan = audioBuffer.numberOfChannels, length = audioBuffer.length * numOfChan * 2 + 44;
+    const buffer = new ArrayBuffer(length), view = new DataView(buffer);
+    const channels = []; let i, sample, offset = 0, pos = 0;
+    function setUint16(data) { view.setUint16(pos, data, true); pos += 2; }
+    function setUint32(data) { view.setUint32(pos, data, true); pos += 4; }
+    setUint32(0x46464952); setUint32(length - 8); setUint32(0x45564157);
+    setUint32(0x20746d66); setUint32(16); setUint16(1);
+    setUint16(numOfChan); setUint32(audioBuffer.sampleRate);
+    setUint32(audioBuffer.sampleRate * 2 * numOfChan); setUint16(numOfChan * 2);
+    setUint16(16); setUint32(0x61746164); setUint32(length - pos - 4);
+    for (i = 0; i < numOfChan; i++) channels.push(audioBuffer.getChannelData(i));
+    while (pos < length) {
+        for (i = 0; i < numOfChan; i++) {
+            sample = Math.max(-1, Math.min(1, channels[i][offset]));
+            sample = sample < 0 ? sample * 0x8000 : sample * 0x7FFF;
+            view.setInt16(pos, sample, true); pos += 2;
+        }
+        offset++;
+    }
+    return new Blob([view], { type: 'audio/wav' });
+}
+// <--- 录音逻辑结束 --->
 
 
 const props = defineProps({
@@ -96,6 +131,8 @@ const result = ref(null);
 const activeReader = ref(null);
 const isListening = ref(false);
 const isProcessing = ref(false);
+// 这是一个虚拟的 ref，用于在模板之外显示状态，您可以根据需要将其连接到UI
+const statusDiv = ref({ textContent: '' });
 
 onMounted(() => {
   handlePlay();
@@ -110,55 +147,16 @@ function handlePlay() {
     speechService.speak(text, options);
 }
 
-// 【核心修改】替换 toggleListening 逻辑
 async function toggleListening() {
   if (isListening.value) {
-    // 停止录音并处理
-    const audioBlob = stopAudioRecording();
-    isProcessing.value = true;
-
-    const formData = new FormData();
-    // 现在我们发送的是一个wav文件
-    formData.append('audio', audioBlob, 'recording.wav');
-
-    try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) throw new Error("用户未认证");
-
-      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/transcribe-audio`, {
-        method: 'POST',
-        headers: { 'Authorization': `Bearer ${session.access_token}` },
-        body: formData,
-      });
-
-      if (!response.ok) {
-          const errorBody = await response.json();
-          throw new Error(errorBody.error || `请求失败，状态码: ${response.status}`);
-      }
-      const responseData = await response.json();
-
-      if (responseData.RecognitionStatus === 'Success') {
-          transcript.value = responseData.DisplayText;
-      } else {
-          transcript.value = `[识别失败: ${responseData.RecognitionStatus || 'Unknown'}]`;
-      }
-      checkAnswer();
-    } catch (e) {
-      error.value = `语音识别失败: ${e.message}`;
-      emit('answered', { isCorrect: false });
-    } finally {
-      isProcessing.value = false;
-    }
+    stopAudioRecording();
     return;
   }
-
-  // 开始录音
   try {
     transcript.value = '';
     diffResult.value = [];
     error.value = '';
     result.value = null;
-    audioData = []; // 重置音频数据
     await startAudioRecording();
   } catch (err) {
     error.value = '请允许使用麦克风权限。';
@@ -192,6 +190,8 @@ watch(() => props.sentence, (newSentence, oldSentence) => {
     if (isListening.value) {
         stopAudioRecording();
     }
+    // 注意：这里原文是 if(oldSentence)，但在 watch 触发时 oldSentence 必然存在
+    // 保持原逻辑，如果需要立即播放，可以调整
     if (oldSentence) {
         handlePlay();
     }
