@@ -1,8 +1,9 @@
 <script setup>
-import { computed } from 'vue';
+import { ref, onMounted } from 'vue';
+import { supabase } from '@/supabase';
 import AppHeader from '@/components/AppHeader.vue';
 import GreetingCard from '@/components/GreetingCard.vue';
-import HomeCharts from '@/components/HomeCharts.vue'; // 1. 导入图表组件
+import HomeCharts from '@/components/HomeCharts.vue';
 import { useRouter } from 'vue-router';
 import { useUserStore } from '@/stores/userStore';
 import { useStudyStore } from '@/stores/studyStore';
@@ -12,7 +13,24 @@ const router = useRouter();
 const userStore = useUserStore();
 const studyStore = useStudyStore();
 
-// --- 快速学习逻辑 (保持不变) ---
+// 用于存储从后端获取的统计数据
+const homeStats = ref(null);
+const isLoadingStats = ref(true);
+
+onMounted(async () => {
+  try {
+    const { data, error } = await supabase.rpc('get_home_statistics');
+    if (error) throw error;
+    homeStats.value = data;
+  } catch (err) {
+    console.error("加载首页统计失败:", err);
+  } finally {
+    isLoadingStats.value = false;
+  }
+});
+
+
+// --- 下面的业务逻辑保持不变 ---
 async function quickStudy() {
     if (!userStore.profile) return;
     const unfinishedStudy = userStore.profile.current_session_ids;
@@ -23,13 +41,7 @@ async function quickStudy() {
         return;
     }
     const lastFilters = userStore.profile.last_study_filters;
-    const filtersToUse = lastFilters || {
-        mastery: 'unmastered',
-        studied: 'unstudied',
-        tags: [],
-        count: 10,
-        isRandom: true
-    };
+    const filtersToUse = lastFilters || { mastery: 'unmastered', studied: 'unstudied', tags: [], count: 10, isRandom: true };
     const { sentences } = await dataService.getStudyData();
     const filtered = sentences.filter(sentence => {
         if (filtersToUse.mastery !== 'all' && (sentence.is_mastered || false) !== (filtersToUse.mastery === 'mastered')) return false;
@@ -41,20 +53,16 @@ async function quickStudy() {
         return true;
     });
     if (filtered.length === 0) {
-        alert("没有符合条件的句子可供学习，请尝试在“学习”页面更改筛选条件，或在“内容管理”页面添加新句子。");
+        alert("No hay frases que coincidan con los filtros actuales.");
         router.push({ name: 'study' });
         return;
     }
     let source = [...filtered];
-    if (filtersToUse.isRandom) {
-        source.sort(() => 0.5 - Math.random());
-    }
+    if (filtersToUse.isRandom) { source.sort(() => 0.5 - Math.random()); }
     const idsToStudy = source.slice(0, filtersToUse.count || 10).map(s => s.id);
     await studyStore.startSession(idsToStudy);
     router.push({ name: 'studySession' });
 }
-
-// --- 快速测试逻辑 (保持不变) ---
 async function quickTest() {
     if (!userStore.profile) return;
     const unfinishedQuiz = userStore.profile.current_quiz_questions;
@@ -63,11 +71,7 @@ async function quickTest() {
         return;
     }
     const lastFilters = userStore.profile.last_quiz_filters;
-    const filtersToUse = lastFilters || {
-        mastery: 'unmastered',
-        studied: 'studied',
-        tags: [],
-    };
+    const filtersToUse = lastFilters || { mastery: 'unmastered', studied: 'studied', tags: [] };
     const { sentences } = await dataService.getStudyData();
     const filtered = sentences.filter(sentence => {
         if (filtersToUse.mastery !== 'all' && (sentence.is_mastered || false) !== (filtersToUse.mastery === 'mastered')) return false;
@@ -79,25 +83,17 @@ async function quickTest() {
         return true;
     });
     if (filtered.length === 0) {
-        alert("没有符合条件的句子可供测试，请先进行学习。");
+        alert("No hay frases disponibles para la prueba, por favor estudia primero.");
         router.push({ name: 'quiz' });
         return;
     }
     const testKeys = ['scramble', 'vocabulary', 'dictation', 'read_aloud', 'repeat_aloud'];
     let allPossibleQuestions = [];
-    filtered.forEach(sentence => {
-        testKeys.forEach(key => {
-            allPossibleQuestions.push({ sentence, testKey: key });
-        });
-    });
+    filtered.forEach(sentence => { testKeys.forEach(key => { allPossibleQuestions.push({ sentence, testKey: key }); }); });
     const quizQuestions = allPossibleQuestions.sort(() => 0.5 - Math.random());
-    await userStore.updateUserProfile({
-      current_quiz_questions: quizQuestions,
-      current_quiz_progress: 0
-    });
+    await userStore.updateUserProfile({ current_quiz_questions: quizQuestions, current_quiz_progress: 0 });
     router.push({ name: 'quiz' });
 }
-
 function manageContent() {
     router.push({ name: 'manage' });
 }
@@ -106,9 +102,10 @@ function manageContent() {
 <template>
   <div class="home-view-padding">
     <AppHeader />
-    <GreetingCard />
+    <GreetingCard :streak="homeStats?.streak" />
 
-    <HomeCharts />
+    <div v-if="isLoadingStats" class="loading-placeholder">Cargando estadísticas...</div>
+    <HomeCharts v-else-if="homeStats" :progress="homeStats.progress" />
 
     <section class="quick-actions">
         <button @click="quickStudy" class="btn btn-primary action-btn">
@@ -121,7 +118,6 @@ function manageContent() {
             Gestionar Contenido
         </button>
     </section>
-
   </div>
 </template>
 
@@ -129,14 +125,20 @@ function manageContent() {
 .home-view-padding {
   padding: 0 15px;
 }
-
+.loading-placeholder {
+  text-align: center;
+  padding: 40px 20px;
+  color: var(--secondary-text);
+  background-color: #f8f9fa;
+  border-radius: 12px;
+  margin-top: 20px;
+}
 .quick-actions {
-    /* 调整一下间距，为图表留出空间 */
     margin-top: 30px;
     display: flex;
     flex-direction: column;
     gap: 20px;
-    padding-bottom: 20px; /* 增加底部内边距，避免内容太靠下 */
+    padding-bottom: 20px;
 }
 .action-btn {
     width: 100%;

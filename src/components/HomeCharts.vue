@@ -1,102 +1,70 @@
 <script setup>
-import { ref, onMounted } from 'vue';
-import { supabase } from '@/supabase';
-import { Bar, Doughnut } from 'vue-chartjs';
-import { Chart as ChartJS, Title, Tooltip, Legend, BarElement, CategoryScale, LinearScale, ArcElement } from 'chart.js';
+import { computed } from 'vue';
+import { Doughnut } from 'vue-chartjs';
+import { Chart as ChartJS, Title, Tooltip, Legend, ArcElement } from 'chart.js';
 
-ChartJS.register(Title, Tooltip, Legend, BarElement, CategoryScale, LinearScale, ArcElement);
+ChartJS.register(Title, Tooltip, Legend, ArcElement);
 
-const isLoading = ref(true);
-const progressData = ref(null);
-const weeklyData = ref(null);
-const error = ref(null);
-
-const doughnutChartOptions = {
-  responsive: true,
-  maintainAspectRatio: false,
-  plugins: {
-    legend: {
-      position: 'bottom',
-    },
-  },
-};
-
-const barChartOptions = {
-  responsive: true,
-  maintainAspectRatio: false,
-  plugins: {
-    legend: {
-      display: false,
-    },
-  },
-  scales: {
-    y: {
-      beginAtZero: true,
-      ticks: {
-        stepSize: 1,
-        precision: 0,
-      },
-    },
-  },
-};
-
-onMounted(async () => {
-  try {
-    const { data, error: rpcError } = await supabase.rpc('get_home_statistics');
-    if (rpcError) throw rpcError;
-
-    if (!data) throw new Error("未能从数据库获取统计数据。");
-
-    // 为甜甜圈图准备数据
-    progressData.value = {
-      labels: ['已掌握', '已学习', '未学习'],
-      datasets: [{
-        backgroundColor: ['#28a745', '#4A90E2', '#e9ecef'],
-        data: [data.progress.mastered, data.progress.studied, data.progress.unstudied],
-      }],
-    };
-
-    // 为条形图准备数据
-    const labels = data.weekly_activity.map((d, i) => {
-        if (i === 6) return '今天';
-        const date = new Date(d.date);
-        // 使用 toLocaleDateString 获取本地化的星期几，更通用
-        return date.toLocaleDateString('zh-CN', { weekday: 'short' });
-    });
-    weeklyData.value = {
-      labels: labels,
-      datasets: [{
-        label: '完成句子数',
-        backgroundColor: '#4A90E2',
-        data: data.weekly_activity.map(d => d.count),
-        borderRadius: 5,
-      }],
-    };
-
-  } catch (err) {
-    error.value = `加载统计数据失败: ${err.message}`;
-    console.error(error.value);
-  } finally {
-    isLoading.value = false;
+const props = defineProps({
+  progress: {
+    type: Object,
+    required: true,
   }
 });
+
+const totalSentences = computed(() => {
+  if (!props.progress) return 0;
+  return props.progress.mastered + props.progress.studied + props.progress.unstudied;
+});
+
+const chartData = computed(() => ({
+  labels: ['Dominadas', 'Estudiadas', 'Sin estudiar'], // 已掌握, 已学习, 未学习
+  datasets: [{
+    backgroundColor: ['#28a745', '#4A90E2', '#e9ecef'],
+    data: [props.progress.mastered, props.progress.studied, props.progress.unstudied],
+    borderWidth: 0,
+  }],
+}));
+
+const chartOptions = {
+  responsive: true,
+  maintainAspectRatio: false,
+  cutout: '70%', // 调整甜甜圈的厚度
+  plugins: {
+    legend: {
+      display: false, // 我们将自定义图例，所以禁用默认的
+    },
+    tooltip: {
+      enabled: true, // 鼠标悬停时依然显示提示
+    }
+  },
+};
+
+const legendItems = computed(() => [
+  { label: 'Dominadas', value: props.progress.mastered, color: '#28a745' },
+  { label: 'Estudiadas', value: props.progress.studied, color: '#4A90E2' },
+  { label: 'Sin estudiar', value: props.progress.unstudied, color: '#e9ecef' },
+]);
 </script>
 
 <template>
   <section class="stats-container">
-    <div v-if="isLoading" class="loading-indicator">正在加载统计数据...</div>
-    <div v-else-if="error" class="error-message">{{ error }}</div>
-    <div v-else class="charts-grid">
-      <div class="chart-card">
-        <h4>学习总览</h4>
+    <div class="chart-card">
+      <h4 class="card-title">Resumen de Estudio</h4>
+      <div class="card-content">
         <div class="chart-wrapper">
-          <Doughnut v-if="progressData" :data="progressData" :options="doughnutChartOptions" />
+          <Doughnut :data="chartData" :options="chartOptions" />
+          <div class="chart-center-text">
+            <span class="total-number">{{ totalSentences }}</span>
+            <span class="total-label">Frases</span>
+          </div>
         </div>
-      </div>
-      <div class="chart-card">
-        <h4>最近7日活动</h4>
-        <div class="chart-wrapper">
-          <Bar v-if="weeklyData" :data="weeklyData" :options="barChartOptions" />
+        <div class="legend-wrapper">
+          <div v-for="item in legendItems" :key="item.label" class="legend-item">
+            <span class="legend-color-dot" :style="{ backgroundColor: item.color }"></span>
+            <span class="legend-label">{{ item.label }}</span>
+            <span class="legend-value">{{ item.value }}</span>
+          </div>
         </div>
       </div>
     </div>
@@ -104,45 +72,72 @@ onMounted(async () => {
 </template>
 
 <style scoped>
-.stats-container {
-  margin-top: 30px;
-  margin-bottom: 20px;
-}
-.charts-grid {
-  display: grid;
-  grid-template-columns: 1fr; /* 移动端默认单列 */
-  gap: 20px;
-}
-/* 在屏幕宽度大于等于 640px 时，变为两列布局 */
-@media (min-width: 640px) {
-    .charts-grid {
-        grid-template-columns: 1fr 1fr;
-    }
-}
 .chart-card {
   background-color: #ffffff;
-  padding: 16px;
-  border-radius: 16px;
-  box-shadow: 0 4px B2px rgba(0,0,0,0.08);
+  padding: 20px;
+  border-radius: 18px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.08);
 }
-.chart-card h4 {
-  margin: 0 0 16px 0;
-  text-align: center;
+.card-title {
+  margin: 0 0 20px 0;
+  text-align: left;
   color: var(--primary-text);
-  font-size: 16px;
+  font-size: 18px;
   font-weight: 600;
 }
+.card-content {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
 .chart-wrapper {
-  height: 220px; /* 固定图表高度 */
+  position: relative;
+  width: 130px; /* 固定图表区域宽度 */
+  height: 130px;
+  flex-shrink: 0;
 }
-.loading-indicator, .error-message {
+.chart-center-text {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
   text-align: center;
-  padding: 40px 20px;
-  color: var(--secondary-text);
-  background-color: #f8f9fa;
-  border-radius: 12px;
+  pointer-events: none;
 }
-.error-message {
-    color: #dc3545;
+.total-number {
+  display: block;
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--primary-text);
+}
+.total-label {
+  display: block;
+  font-size: 12px;
+  color: var(--secondary-text);
+}
+.legend-wrapper {
+  flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.legend-item {
+  display: flex;
+  align-items: center;
+  font-size: 14px;
+}
+.legend-color-dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  margin-right: 10px;
+}
+.legend-label {
+  color: var(--secondary-text);
+}
+.legend-value {
+  margin-left: auto; /* 将数字推到最右边 */
+  font-weight: 600;
+  color: var(--primary-text);
 }
 </style>
