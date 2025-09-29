@@ -4,6 +4,58 @@ import { MicrophoneIcon } from '@heroicons/vue/24/solid';
 import { diffWords } from 'diff';
 import { supabase } from '@/supabase';
 
+// <--- 从这里开始是新的录音逻辑 (与RepeatAloudTest.vue同步) --->
+let audioContext;
+let stream;
+let processor;
+let audioData = [];
+const sampleRate = 16000; // 使用16kHz采样率，这是语音识别的黄金标准
+
+function startAudioRecording() {
+  audioContext = new (window.AudioContext || window.webkitAudioContext)({ sampleRate });
+  return navigator.mediaDevices.getUserMedia({ audio: { sampleRate, channelCount: 1 } })
+    .then(micStream => {
+      stream = micStream;
+      const source = audioContext.createMediaStreamSource(stream);
+      processor = audioContext.createScriptProcessor(4096, 1, 1);
+      processor.onaudioprocess = (e) => {
+        audioData.push(...e.inputBuffer.getChannelData(0));
+      };
+      source.connect(processor);
+      processor.connect(audioContext.destination);
+      isListening.value = true;
+    });
+}
+
+function stopAudioRecording() {
+  if (stream) {
+    stream.getTracks().forEach(track => track.stop());
+  }
+  if (processor) {
+    processor.disconnect();
+  }
+  if (audioContext && audioContext.state !== 'closed') {
+    audioContext.close();
+  }
+  isListening.value = false;
+  const wavBlob = encodeWAV(audioData, sampleRate);
+  return wavBlob;
+}
+
+function encodeWAV(samples, sampleRate) {
+  const buffer = new ArrayBuffer(44 + samples.length * 2);
+  const view = new DataView(buffer);
+  function writeString(view, offset, string) { for (let i = 0; i < string.length; i++) { view.setUint8(offset + i, string.charCodeAt(i)); } }
+  function floatTo16BitPCM(output, offset, input) { for (let i = 0; i < input.length; i++, offset += 2) { const s = Math.max(-1, Math.min(1, input[i])); output.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true); } }
+  writeString(view, 0, 'RIFF'); view.setUint32(4, 36 + samples.length * 2, true); writeString(view, 8, 'WAVE');
+  writeString(view, 12, 'fmt '); view.setUint32(16, 16, true); view.setUint16(20, 1, true); view.setUint16(22, 1, true);
+  view.setUint32(24, sampleRate, true); view.setUint32(28, sampleRate * 2, true); view.setUint16(32, 2, true);
+  view.setUint16(34, 16, true); writeString(view, 36, 'data'); view.setUint32(40, samples.length * 2, true);
+  floatTo16BitPCM(view, 44, samples);
+  return new Blob([view], { type: 'audio/wav' });
+}
+// <--- 到这里结束是新的录音逻辑 --->
+
 const props = defineProps({
   sentence: { type: Object, required: true }
 });
@@ -15,85 +67,61 @@ const error = ref('');
 const result = ref(null);
 const isListening = ref(false);
 const isProcessing = ref(false);
-const mediaRecorder = ref(null);
-const audioChunks = ref([]);
 
-function toggleListening() {
-  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-    error.value = '浏览器不支持麦克风功能。';
-    return;
-  }
+// 【核心修改】替换 toggleListening 逻辑
+async function toggleListening() {
   if (isListening.value) {
-    if (mediaRecorder.value && mediaRecorder.value.state === 'recording') {
-      mediaRecorder.value.stop();
+    // 停止录音并处理
+    const audioBlob = stopAudioRecording();
+    isProcessing.value = true;
+
+    const formData = new FormData();
+    formData.append('audio', audioBlob, 'recording.wav');
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("用户未认证");
+
+      // 【重要】修正函数名称，去掉 "-node"
+      const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/transcribe-audio`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${session.access_token}` },
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.json();
+        throw new Error(errorBody.error || `请求失败，状态码: ${response.status}`);
+      }
+      const responseData = await response.json();
+
+      if (responseData.RecognitionStatus === 'Success') {
+        transcript.value = responseData.DisplayText;
+      } else {
+        transcript.value = `[识别失败: ${responseData.RecognitionStatus || 'Unknown'}]`;
+      }
+      checkAnswer();
+    } catch (e) {
+      error.value = `语音识别失败: ${e.message}`;
+      emit('answered', { isCorrect: false });
+    } finally {
+      isProcessing.value = false;
     }
-    isListening.value = false;
     return;
   }
-  navigator.mediaDevices.getUserMedia({ audio: true })
-    .then(stream => {
-      audioChunks.value = [];
-      // 使用推荐的MIME类型和比特率
-      const options = { mimeType: 'audio/webm;codecs=opus', audioBitsPerSecond: 128000 };
-      mediaRecorder.value = new MediaRecorder(stream, options);
-      mediaRecorder.value.ondataavailable = event => {
-        audioChunks.value.push(event.data);
-      };
 
-      // --- 【核心修改】---
-      // 替换了原来的调试逻辑，现在会实际发送请求到后端
-      mediaRecorder.value.onstop = async () => {
-        isProcessing.value = true; // 开始处理状态
-        const audioBlob = new Blob(audioChunks.value, { type: mediaRecorder.value.mimeType });
-        const formData = new FormData();
-        formData.append('audio', audioBlob, 'recording.webm');
-
-        try {
-          // 获取 Supabase 用户 session 用于认证
-          const { data: { session } } = await supabase.auth.getSession();
-          if (!session) throw new Error("用户未认证");
-
-          // 发送请求到您的后端函数
-          const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/transcribe-audio-node`, {
-            method: 'POST',
-            headers: { 'Authorization': `Bearer ${session.access_token}` },
-            body: formData,
-          });
-
-          if (!response.ok) {
-              const errorBody = await response.json();
-              throw new Error(errorBody.error || `请求失败，状态码: ${response.status}`);
-          }
-
-          const responseData = await response.json();
-
-          // 检查 Azure 返回的状态
-          if (responseData.RecognitionStatus === 'Success') {
-              transcript.value = responseData.DisplayText;
-          } else {
-              // 如果识别失败，给出一个提示性文本
-              transcript.value = `[识别失败: ${responseData.RecognitionStatus || 'Unknown'}]`;
-          }
-
-          // 调用答案检查函数
-          checkAnswer();
-
-        } catch (e) {
-          error.value = `语音识别失败: ${e.message}`;
-          emit('answered', { isCorrect: false }); // 触发 answered 事件
-        } finally {
-          isProcessing.value = false; // 结束处理状态
-          stream.getTracks().forEach(track => track.stop()); // 关闭媒体流
-        }
-      };
-      // --- 【修改结束】---
-
-      mediaRecorder.value.start();
-      isListening.value = true;
-    })
-    .catch((err) => {
-      error.value = `麦克风权限错误: ${err.message}`;
-    });
+  // 开始录音
+  try {
+    transcript.value = '';
+    diffResult.value = [];
+    error.value = '';
+    result.value = null;
+    audioData = []; // 重置音频数据
+    await startAudioRecording();
+  } catch (err) {
+    error.value = '请允许使用麦克风权限。';
+    console.error('Mic permission error:', err);
+  }
 }
 
 function normalizeString(str) {
@@ -119,14 +147,14 @@ watch(() => props.sentence, () => {
     isProcessing.value = false;
     error.value = '';
     result.value = null;
-    if (mediaRecorder.value && mediaRecorder.value.state === 'recording') {
-        mediaRecorder.value.stop();
+    if (isListening.value) {
+      stopAudioRecording();
     }
 }, { immediate: true });
 
 onUnmounted(() => {
-    if (mediaRecorder.value && mediaRecorder.value.state === 'recording') {
-        mediaRecorder.value.stop();
+    if (isListening.value) {
+      stopAudioRecording();
     }
 });
 </script>

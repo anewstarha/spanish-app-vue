@@ -2,103 +2,70 @@
 <html lang="zh-CN">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Azure 语音转文字 - 官方快速入门示例</title>
-    <script src="https://aka.ms/csspeech/js/sdk/speech.sdk.bundle.js"></script>
+    <title>最终诊断测试</title>
 </head>
 <body>
+    <h1>最终诊断测试：上传WAV文件</h1>
+    <p>这个页面用来测试您的Supabase后端函数是否能正确处理一个已知的、完好的WAV文件。</p>
 
-    <h1>Azure 语音转文字 - 官方示例</h1>
-    <p>点击按钮后，请授权麦克风并开始说话。</p>
+    <hr>
 
-    <button id="recognizeButton">开始识别</button>
+    <p><b>步骤 1:</b> 选择一个您确认可以正常工作的西班牙语WAV文件（比如您在Speech Studio测试成功过的那个）。</p>
+    <input type="file" id="audioFileInput" accept="audio/wav">
 
-    <div style="margin-top: 20px;">
-        <strong>状态：</strong><span id="statusMessage">空闲</span>
-    </div>
-    <div style="margin-top: 10px;">
-        <strong>识别结果：</strong><p id="resultText" style="font-style: italic; color: #333; border: 1px solid #eee; padding: 10px; min-height: 50px;"></p>
-    </div>
+    <p><b>步骤 2:</b> 点击按钮上传并进行识别。</p>
+    <button id="uploadButton">上传并识别</button>
+
+    <hr>
+
+    <h2>识别结果:</h2>
+    <pre id="resultOutput" style="background-color: #f0f0f0; padding: 1rem; border-radius: 5px; min-height: 50px;"></pre>
 
     <script>
-        // --- 1. 请在这里替换为您的密钥和区域 ---
-        const subscriptionKey = "9H9VGjzrbsY23D8XeeoZrd13pD3HD2kCWSIZowTHNNEZwPFXraxkJQQJ99BIACYeBjFXJ3w3AAAYACOGg5h1";
-        const serviceRegion = "eastus"; // 例如： "eastus"
+        const uploadButton = document.getElementById('uploadButton');
+        const audioFileInput = document.getElementById('audioFileInput');
+        const resultOutput = document.getElementById('resultOutput');
 
-        // --- 2. 获取页面上的HTML元素 ---
-        const recognizeButton = document.getElementById('recognizeButton');
-        const statusMessage = document.getElementById('statusMessage');
-        const resultText = document.getElementById('resultText');
+        // 已将您的信息填入下方
+        const SUPABASE_FUNCTION_URL = "https://rvarfascuwvponxwdeoe.supabase.co/functions/v1/transcribe-audio-node";
+        const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InJ2YXJmYXNjdXd2cG9ueHdkZW9lIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTkwNTE3MjYsImV4cCI6MjA3NDYyNzcyNn0.AXTL5HwbBPgkKcTwAbUerHyfCa0xUJnvIgb4o1xuPos";
 
-        // --- 3. 核心语音识别逻辑 ---
-        recognizeButton.addEventListener('click', () => {
-            // 禁用按钮防止重复点击
-            recognizeButton.disabled = true;
-            resultText.textContent = "";
-            statusMessage.textContent = "请授权麦克风，准备识别...";
-
-            // 检查 SpeechSDK 是否已加载
-            if (typeof SpeechSDK === 'undefined') {
-                statusMessage.textContent = "错误: SpeechSDK 未加载。";
-                console.error("SpeechSDK not found. Check if the script loaded correctly.");
-                recognizeButton.disabled = false;
+        uploadButton.addEventListener('click', async () => {
+            const file = audioFileInput.files[0];
+            if (!file) {
+                resultOutput.textContent = "请先选择一个WAV文件。";
                 return;
             }
 
-            // 使用您的密钥和区域创建语音配置
-            const speechConfig = SpeechSDK.SpeechConfig.fromSubscription(subscriptionKey, serviceRegion);
-            // 设置识别语言 (这里以西班牙语为例，您可以根据需要修改)
-            speechConfig.speechRecognitionLanguage = "es-ES";
+            resultOutput.textContent = "正在上传和识别，请稍候...";
 
-            // 从默认麦克风获取音频
-            const audioConfig = SpeechSDK.AudioConfig.fromDefaultMicrophoneInput();
+            const formData = new FormData();
+            formData.append('audio', file, file.name);
 
-            // 创建语音识别器
-            const recognizer = new SpeechSDK.SpeechRecognizer(speechConfig, audioConfig);
+            try {
+                // 注意：为了简单测试，这里直接使用 anon key。
+                // 在您的正式应用中，使用用户的 session token 是更安全的做法。
+                const response = await fetch(SUPABASE_FUNCTION_URL, {
+                    method: 'POST',
+                    headers: {
+                        'apikey': SUPABASE_ANON_KEY,
+                        'Authorization': `Bearer ${SUPABASE_ANON_KEY}`
+                    },
+                    body: formData,
+                });
 
-            statusMessage.textContent = "请说话...";
-            console.log("Speak into your microphone.");
+                const responseData = await response.json();
 
-            // 开始单次识别。它会识别一句话，直到检测到静默后停止。
-            recognizer.recognizeOnceAsync(result => {
-                console.log(`RECOGNIZED: Text=${result.text}`);
-                statusMessage.textContent = "识别完成！";
-
-                // 根据识别结果的状态更新页面
-                switch (result.reason) {
-                    case SpeechSDK.ResultReason.RecognizedSpeech:
-                        resultText.textContent = `识别成功: "${result.text}"`;
-                        break;
-                    case SpeechSDK.ResultReason.NoMatch:
-                        resultText.textContent = "语音无法识别。";
-                        break;
-                    case SpeechSDK.ResultReason.Canceled:
-                        const cancellation = SpeechSDK.CancellationDetails.fromResult(result);
-                        resultText.textContent = `识别被取消。原因: ${cancellation.reason}`;
-                        if (cancellation.reason === SpeechSDK.CancellationReason.Error) {
-                            resultText.textContent += `\n错误码: ${cancellation.ErrorCode}`;
-                            resultText.textContent += `\n错误详情: ${cancellation.errorDetails}`;
-                            console.error(`CANCELED: ErrorCode=${cancellation.ErrorCode}`);
-                            console.error(`CANCELED: ErrorDetails=${cancellation.errorDetails}`);
-                        }
-                        break;
+                if (!response.ok) {
+                    throw new Error(responseData.error || `请求失败，状态码: ${response.status}`);
                 }
 
-                // 重新启用按钮
-                recognizeButton.disabled = false;
-                // 关闭识别器，释放资源
-                recognizer.close();
+                resultOutput.textContent = JSON.stringify(responseData, null, 2);
 
-            }, error => {
-                console.error(`ERROR: ${error}`);
-                resultText.textContent = `发生错误: ${error}`;
-                // 重新启用按钮
-                recognizeButton.disabled = false;
-                 // 关闭识别器，释放资源
-                recognizer.close();
-            });
+            } catch (error) {
+                resultOutput.textContent = `发生错误: ${error.message}`;
+            }
         });
     </script>
-
 </body>
 </html>
