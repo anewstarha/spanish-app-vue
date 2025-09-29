@@ -13,7 +13,6 @@ export default defineConfig({
   },
 
   // 3. 我们之前定义的 base 路径
-  base: '/spanish-app/',
 
   plugins: [
     vue(),
