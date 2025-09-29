@@ -4,7 +4,7 @@ import { MicrophoneIcon } from '@heroicons/vue/24/solid';
 import { diffWords } from 'diff';
 import { supabase } from '@/supabase';
 
-// <--- 从这里开始是最终验证成功的录音逻辑 --->
+// <--- 最终版录音逻辑 --->
 let mediaRecorder;
 let audioChunks = [];
 let audioContext;
@@ -52,10 +52,13 @@ async function sendAudioToServer(audioBlob) {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) throw new Error("用户未认证");
 
-    // 确保调用正确的函数名
     const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/transcribe-audio`, {
       method: 'POST',
-      headers: { 'Authorization': `Bearer ${session.access_token}` },
+      headers: {
+        'Authorization': `Bearer ${session.access_token}`,
+        // 添加 apikey 用于 Supabase 网关验证
+        'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+      },
       body: formData,
     });
 

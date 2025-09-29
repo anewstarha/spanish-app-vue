@@ -5,7 +5,7 @@ import * as speechService from '@/services/speechService';
 import { diffWords } from 'diff';
 import { supabase } from '@/supabase';
 
-// <--- 从这里开始是最终验证成功的录音逻辑 --->
+// <--- 最终版录音逻辑 --->
 let mediaRecorder;
 let audioChunks = [];
 let audioContext;
@@ -33,7 +33,6 @@ function stopAudioRecording() {
 
 async function processAndSendAudio() {
   isProcessing.value = true;
-  statusDiv.textContent = '正在处理音频...'; // 假设有一个statusDiv用于显示状态
   const rawBlob = new Blob(audioChunks, { type: mediaRecorder.mimeType });
 
   if (!audioContext) audioContext = new (window.AudioContext || window.webkitAudioContext)();
@@ -56,7 +55,11 @@ async function sendAudioToServer(audioBlob) {
 
     const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/transcribe-audio`, {
       method: 'POST',
-      headers: { 'Authorization': `Bearer ${session.access_token}` },
+      headers: {
+        'Authorization': `Bearer ${session.access_token}`,
+        // 添加 apikey 用于 Supabase 网关验证
+        'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY,
+      },
       body: formData,
     });
 
@@ -118,7 +121,6 @@ function encodeWAV(audioBuffer) {
 }
 // <--- 录音逻辑结束 --->
 
-
 const props = defineProps({
   sentence: { type: Object, required: true }
 });
@@ -131,8 +133,6 @@ const result = ref(null);
 const activeReader = ref(null);
 const isListening = ref(false);
 const isProcessing = ref(false);
-// 这是一个虚拟的 ref，用于在模板之外显示状态，您可以根据需要将其连接到UI
-const statusDiv = ref({ textContent: '' });
 
 onMounted(() => {
   handlePlay();
@@ -190,8 +190,6 @@ watch(() => props.sentence, (newSentence, oldSentence) => {
     if (isListening.value) {
         stopAudioRecording();
     }
-    // 注意：这里原文是 if(oldSentence)，但在 watch 触发时 oldSentence 必然存在
-    // 保持原逻辑，如果需要立即播放，可以调整
     if (oldSentence) {
         handlePlay();
     }
