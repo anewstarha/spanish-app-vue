@@ -24,7 +24,7 @@ function openProfileModal() {
   <header class="app-header">
     <div class="logo">
       <img :src="appLogo" alt="App Logo" class="logo-icon" />
-      <span>APRENDE ESPAÑOL V2</span>
+      <span>APRENDE ESPAÑOL</span>
     </div>
 
     <div v-if="store.isLoggedIn" class="user-menu-container">
@@ -46,8 +46,8 @@ function openProfileModal() {
 .app-header { display: flex; justify-content: space-between; align-items: center; padding: 15px 0; }
 .logo { display: flex; align-items: center; font-weight: 700; font-size: 16px; }
 .logo-icon {
-  width: 28px;
-  height: 28px;
+  width: 36px;
+  height: 36px;
   margin-right: 8px;
   /* 移除了 color 属性，因为图片自带颜色 */
 }
