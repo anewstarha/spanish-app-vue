@@ -14,6 +14,7 @@ import { PlayCircleIcon, ArrowLeftCircleIcon, ArrowRightCircleIcon } from '@hero
 import * as speechService from '@/services/speechService';
 import { getCoreWordsFromSentence } from '@/utils/textUtils';
 
+// ... 其他 ref 和常量定义保持不变 ...
 const allSentences = ref([]);
 const allWords = ref([]);
 const allTags = ref([]);
@@ -42,25 +43,34 @@ const TEST_COMPONENTS = {
 };
 const testKeys = Object.keys(TEST_COMPONENTS);
 
+
 onMounted(async () => {
   if (!userStore.user) {
     isLoading.value = false;
     return;
   }
 
-  // --- MODIFIED ---
-  // 检查并自动恢复未完成的测试，不再询问
+  // --- 【核心修改】 ---
   const unfinishedQuiz = userStore.profile?.current_quiz_questions;
+  // 检查导航状态，看是否是从主页的“快速测试”按钮跳转过来的
+  const shouldAutoResume = history.state?.autoResume === true;
+
   if (unfinishedQuiz && unfinishedQuiz.length > 0) {
-      const progress = userStore.profile.current_quiz_progress || 0;
-      quizQuestions.value = unfinishedQuiz;
-      currentQuestionIndex.value = progress;
-      isAnswered.value = false;
-      pageState.value = 'quizzing';
-      isLoading.value = false;
-      return; // 直接进入测试，跳过数据加载
+    // 如果是自动恢复，或者用户确认继续，则恢复会话
+    if (shouldAutoResume || confirm("Se encontró un test no finalizado. ¿Deseas continuar?")) {
+        const progress = userStore.profile.current_quiz_progress || 0;
+        quizQuestions.value = unfinishedQuiz;
+        currentQuestionIndex.value = progress;
+        isAnswered.value = false;
+        pageState.value = 'quizzing';
+        isLoading.value = false;
+        return; // 直接进入测试，跳过后续数据加载
+    } else {
+        // 如果用户选择不继续，则清除未完成的测试状态
+        await userStore.updateUserProfile({ current_quiz_questions: null, current_quiz_progress: null });
+    }
   }
-  // --- END MODIFIED ---
+  // --- 【修改结束】 ---
 
   try {
     const data = await dataService.getStudyData();
@@ -75,6 +85,7 @@ onMounted(async () => {
   }
 });
 
+// ... 其他所有函数 (filteredSentences, tagsWithCounts, etc.) 保持不变 ...
 const filteredSentences = computed(() => {
   if (!allSentences.value) return [];
   return allSentences.value.filter(sentence => {
@@ -90,7 +101,6 @@ const filteredSentences = computed(() => {
     return true;
   });
 });
-
 const tagsWithCounts = computed(() => {
     const counts = {};
     let untaggedCount = 0;
@@ -108,7 +118,6 @@ const tagsWithCounts = computed(() => {
     tagList.unshift({ name: 'Todos', count: preFiltered.length });
     return tagList.filter(t => t.count > 0);
 });
-
 const currentQuestion = computed(() => quizQuestions.value[currentQuestionIndex.value]);
 const currentTestComponent = computed(() => {
     if(currentQuestion.value) {
@@ -116,7 +125,6 @@ const currentTestComponent = computed(() => {
     }
     return null;
 });
-
 const showExpandButton = ref(false);
 const tagListRef = ref(null);
 watch(tagsWithCounts, () => {
@@ -126,14 +134,12 @@ watch(tagsWithCounts, () => {
         }
     });
 }, { deep: true, immediate: true });
-
 function collapseTags() {
     areTagsExpanded.value = false;
     if (contentWrapperRef.value) {
         contentWrapperRef.value.scrollTop = 0;
     }
 }
-
 function shuffleArray(array) {
   for (let i = array.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
@@ -141,15 +147,12 @@ function shuffleArray(array) {
   }
   return array;
 }
-
 async function startQuiz() {
   if (filteredSentences.value.length === 0) {
     alert('没有符合条件的句子可供练习。');
     return;
   }
-
   await userStore.updateUserProfile({ last_quiz_filters: filters.value });
-
   let allPossibleQuestions = [];
   filteredSentences.value.forEach(sentence => {
     testKeys.forEach(key => {
@@ -162,15 +165,12 @@ async function startQuiz() {
   quizQuestions.value = shuffleArray(allPossibleQuestions);
   currentQuestionIndex.value = 0;
   isAnswered.value = false;
-
   await userStore.updateUserProfile({
       current_quiz_questions: quizQuestions.value,
       current_quiz_progress: 0
   });
-
   pageState.value = 'quizzing';
 }
-
 async function advanceToNextQuestion() {
   if (isAnswered.value && currentQuestionIndex.value < quizQuestions.value.length - 1) {
     currentQuestionIndex.value++;
@@ -181,7 +181,6 @@ async function advanceToNextQuestion() {
     pageState.value = 'finished';
   }
 }
-
 async function goBack() {
     if(currentQuestionIndex.value > 0) {
         currentQuestionIndex.value--;
@@ -189,18 +188,15 @@ async function goBack() {
         await userStore.updateUserProfile({ current_quiz_progress: currentQuestionIndex.value });
     }
 }
-
 function handleAnswered(result) {
   isAnswered.value = true;
 }
-
 async function resetQuiz() {
     await userStore.updateUserProfile({ current_quiz_questions: null, current_quiz_progress: null });
     pageState.value = 'filtering';
     quizQuestions.value = [];
     currentQuestionIndex.value = 0;
 }
-
 function toggleTag(tag) {
   if (tag === 'Todos') {
     filters.value.tags = [];
@@ -210,7 +206,6 @@ function toggleTag(tag) {
   if (index > -1) filters.value.tags.splice(index, 1);
   else filters.value.tags.push(tag);
 }
-
 function replayTestAudio() {
   if (pageState.value !== 'quizzing' || !currentQuestion.value) return;
   const options = { onStart: () => activeReader.value = 'replay', onEnd: () => activeReader.value = null };
