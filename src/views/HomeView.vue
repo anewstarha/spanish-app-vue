@@ -2,6 +2,7 @@
 import { computed } from 'vue';
 import AppHeader from '@/components/AppHeader.vue';
 import GreetingCard from '@/components/GreetingCard.vue';
+import HomeCharts from '@/components/HomeCharts.vue'; // 1. 导入图表组件
 import { useRouter } from 'vue-router';
 import { useUserStore } from '@/stores/userStore';
 import { useStudyStore } from '@/stores/studyStore';
@@ -11,7 +12,7 @@ const router = useRouter();
 const userStore = useUserStore();
 const studyStore = useStudyStore();
 
-// --- 快速学习逻辑 (这部分不变) ---
+// --- 快速学习逻辑 (保持不变) ---
 async function quickStudy() {
     if (!userStore.profile) return;
     const unfinishedStudy = userStore.profile.current_session_ids;
@@ -53,18 +54,14 @@ async function quickStudy() {
     router.push({ name: 'studySession' });
 }
 
-// --- 快速测试逻辑 ---
+// --- 快速测试逻辑 (保持不变) ---
 async function quickTest() {
     if (!userStore.profile) return;
-
     const unfinishedQuiz = userStore.profile.current_quiz_questions;
     if (unfinishedQuiz && unfinishedQuiz.length > 0) {
-        // 【修改点】导航时，通过 state 传递 autoResume 标志
         router.push({ name: 'quiz', state: { autoResume: true } });
         return;
     }
-
-    // 后续逻辑不变...
     const lastFilters = userStore.profile.last_quiz_filters;
     const filtersToUse = lastFilters || {
         mastery: 'unmastered',
@@ -111,6 +108,8 @@ function manageContent() {
     <AppHeader />
     <GreetingCard />
 
+    <HomeCharts />
+
     <section class="quick-actions">
         <button @click="quickStudy" class="btn btn-primary action-btn">
             Aprendizaje Rápido
@@ -132,10 +131,12 @@ function manageContent() {
 }
 
 .quick-actions {
-    margin-top: 40px;
+    /* 调整一下间距，为图表留出空间 */
+    margin-top: 30px;
     display: flex;
     flex-direction: column;
     gap: 20px;
+    padding-bottom: 20px; /* 增加底部内边距，避免内容太靠下 */
 }
 .action-btn {
     width: 100%;
