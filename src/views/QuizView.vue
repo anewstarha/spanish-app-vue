@@ -415,4 +415,8 @@ function replayTestAudio() {
   transition: all 0.2s ease;
 }
 .tag.active span { color: #4A90E2; background-color: white; }
+.action-section .btn {
+  width: 100%;
+  box-sizing: border-box; /* 这是一个好习惯，确保 padding 不会导致宽度溢出容器 */
+}
 </style>
