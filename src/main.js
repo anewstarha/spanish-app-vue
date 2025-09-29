@@ -4,23 +4,31 @@ import './assets/main.css'
 
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
+import { useUserStore } from './stores/userStore' // 1. 在这里导入 userStore
 import App from './App.vue'
 import router from './router'
-
-// 1. 导入 supabase 客户端
 import { supabase } from './supabase'
 
-let app;
+// 先创建 App 实例和 Pinia 实例
+const app = createApp(App)
+const pinia = createPinia()
 
-// 2. 将 app 的创建和挂载移入 onAuthStateChange 回调
-// 这个回调函数在页面加载时会立即被触发一次
-supabase.auth.onAuthStateChange(() => {
+app.use(pinia)
+app.use(router)
 
-  // 3. 使用一个技巧确保应用只被创建和挂载一次
-  if (!app) {
-    app = createApp(App)
-    app.use(createPinia())
-    app.use(router)
+// 在挂载 App 之前，先获取 userStore
+const userStore = useUserStore()
+
+let isMounted = false;
+
+// 设置全局的认证状态监听器
+supabase.auth.onAuthStateChange((event, session) => {
+  // 无论何时认证状态变化，都立即更新 Store
+  userStore.setUser(session?.user ?? null)
+
+  // 确保 App 只被挂载一次
+  if (!isMounted) {
     app.mount('#app')
+    isMounted = true
   }
 })

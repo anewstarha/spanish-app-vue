@@ -1,36 +1,13 @@
 <script setup>
-import { ref, onMounted } from 'vue'; // onUnmounted 已被移除，因为未使用
-import { RouterView } from 'vue-router';
-import BottomNav from './components/BottomNav.vue';
-import { useUserStore } from './stores/userStore';
-import { supabase } from './supabase';
+import { RouterView } from 'vue-router'
+import BottomNav from './components/BottomNav.vue'
+import { useUserStore } from './stores/userStore'
+// 不再需要 onMounted 和 supabase 了
 
-const store = useUserStore();
+const store = useUserStore()
 
-// --- 新增 PWA 安装提示相关 ---
-const showIosInstallPrompt = ref(false);
-
-// 设置一个持久的 Supabase 认证状态监听器
-onMounted(() => {
-  // 您原有的 Supabase 监听器，保持不变
-  supabase.auth.onAuthStateChange((event, session) => {
-    store.setUser(session?.user ?? null);
-  });
-
-  // --- 新增的 PWA 安装提示逻辑 ---
-  // 检测是否是iOS设备 (iPhone, iPad, iPod)
-  const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
-  // 检测 App 是否已经处于独立的“已安装”模式
-  const isInStandaloneMode = ('standalone' in window.navigator) && (window.navigator.standalone);
-
-  // 如果是iOS设备，并且还未被安装到桌面，则显示提示
-  if (isIOS && !isInStandaloneMode) {
-    // 延迟3秒再显示，给用户一点时间浏览页面
-    setTimeout(() => {
-      showIosInstallPrompt.value = true;
-    }, 3000);
-  }
-});
+// onMounted 钩子里的 onAuthStateChange 监听器已被移除
+// 因为这个逻辑已经前置到了 main.js 中
 </script>
 
 <template>
