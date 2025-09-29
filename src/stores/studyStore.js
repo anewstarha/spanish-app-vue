@@ -1,190 +1,103 @@
-// src/stores/studyStore.js
+// src/stores/userStore.js
 
 import { defineStore } from 'pinia'
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue' // 1. 导入 watch
 import { supabase } from '@/supabase'
-import { useUserStore } from './userStore'
+import router from '@/router'
 
-export const useStudyStore = defineStore('study', () => {
-  const sentenceIds = ref([])
-  const allSentencesInSession = ref([])
-  const allWords = ref([])
-  const currentSentenceIndex = ref(0)
-  const isLoading = ref(false)
+export const useUserStore = defineStore('user', () => {
+    const user = ref(undefined)
+    const profile = ref(null)
+    // 2. 新增：一个 ref 用于表示初始认证状态是否已就绪
+    const authReady = ref(false)
 
-  const currentSentence = computed(() => {
-    if (allSentencesInSession.value.length > 0) {
-      return allSentencesInSession.value[currentSentenceIndex.value]
-    }
-    return null
-  })
+    // isLoggedin 逻辑保持不变
+    const isLoggedIn = computed(() => user.value !== null && user.value !== undefined)
 
-  const progress = computed(() => ({
-    current: currentSentenceIndex.value + 1,
-    total: allSentencesInSession.value.length
-  }))
-
-  async function startSession(ids) {
-    sentenceIds.value = ids
-    currentSentenceIndex.value = 0
-    isLoading.value = true
-    allSentencesInSession.value = []
-    allWords.value = []
-
-    const userStore = useUserStore()
-    if (!userStore.user) {
-      isLoading.value = false
-      return
+    async function setUser(newUser) {
+        user.value = newUser
+        if (newUser) {
+            const { data, error } = await supabase
+                .from('profiles')
+                .select('*')
+                .eq('id', newUser.id)
+                .single()
+            if (error) console.error("获取用户档案失败:", error)
+            else profile.value = data
+        } else {
+            profile.value = null
+        }
+        // 3. 关键：在设置用户状态和档案后，标记认证已就绪
+        authReady.value = true
     }
 
-    try {
-      const [sentencesResponse, wordsResponse] = await Promise.all([
-        supabase
-          .from('sentences')
-          .select('*')
-          .in('id', ids),
-        supabase
-          .from('high_frequency_words')
-          .select('*')
-          .eq('user_id', userStore.user.id)
-      ]);
-
-      if (sentencesResponse.error) throw sentencesResponse.error;
-      if (wordsResponse.error) throw wordsResponse.error;
-
-      const sentencesData = sentencesResponse.data;
-      const { data: progressData, error: progressError } = await supabase
-        .from('user_progress')
-        .select('sentence_id, is_studied, is_mastered')
-        .in('sentence_id', ids)
-        .eq('user_id', userStore.user.id);
-
-      if (progressError) throw progressError;
-
-      const progressMap = new Map((progressData || []).map(p => [p.sentence_id, p]));
-      const sentencesWithProgress = sentencesData.map(sentence => {
-        const progress = progressMap.get(sentence.id) || {};
-        return { ...sentence, is_studied: progress.is_studied || false, is_mastered: progress.is_mastered || false }
-      });
-
-      const sentenceMap = new Map(sentencesWithProgress.map(s => [s.id, s]))
-      allSentencesInSession.value = ids.map(id => sentenceMap.get(id)).filter(Boolean)
-      allWords.value = wordsResponse.data
-
-      // 会话开始时，保存会话列表到数据库
-      userStore.updateSessionProgress({
-          current_session_ids: ids,
-          current_session_progress: 0
-      });
-
-    } catch (error) {
-      console.error('获取学习会话数据失败:', error)
-    } finally {
-      isLoading.value = false
-    }
-  }
-
-  // 用于恢复会话的函数
-  async function resumeSession(ids, progress) {
-    // 复用加载逻辑，但不保存新会话
-    sentenceIds.value = ids
-    currentSentenceIndex.value = 0
-    isLoading.value = true
-    allSentencesInSession.value = []
-    allWords.value = []
-
-    const userStore = useUserStore();
-    if (!userStore.user) {
-      isLoading.value = false
-      return
+    // updateUserProfile 逻辑保持不变
+    async function updateUserProfile(dataToUpdate) {
+        if (!profile.value) return;
+        const { data, error } = await supabase
+            .from('profiles')
+            .update(dataToUpdate)
+            .eq('id', profile.value.id)
+            .select()
+            .single();
+        if (error) { console.error("更新用户配置失败:", error); }
+        else { profile.value = data; }
     }
 
-    // 这里是几乎与 startSession 相同的加载逻辑
-    try {
-      const [sentencesResponse, wordsResponse] = await Promise.all([
-        supabase.from('sentences').select('*').in('id', ids),
-        supabase.from('high_frequency_words').select('*').eq('user_id', userStore.user.id)
-      ]);
-      if (sentencesResponse.error) throw sentencesResponse.error;
-      if (wordsResponse.error) throw wordsResponse.error;
-      const sentencesData = sentencesResponse.data;
-      const { data: progressData, error: progressError } = await supabase.from('user_progress').select('sentence_id, is_studied, is_mastered').in('sentence_id', ids).eq('user_id', userStore.user.id);
-      if (progressError) throw progressError;
-      const progressMap = new Map((progressData || []).map(p => [p.sentence_id, p]));
-      const sentencesWithProgress = sentencesData.map(sentence => {
-        const progress = progressMap.get(sentence.id) || {};
-        return { ...sentence, is_studied: progress.is_studied || false, is_mastered: progress.is_mastered || false }
-      });
-      const sentenceMap = new Map(sentencesWithProgress.map(s => [s.id, s]))
-      allSentencesInSession.value = ids.map(id => sentenceMap.get(id)).filter(Boolean)
-      allWords.value = wordsResponse.data
-
-      // 设置正确的进度
-      currentSentenceIndex.value = progress;
-
-    } catch (error) {
-      console.error('恢复学习会话失败:', error)
-    } finally {
-      isLoading.value = false
+    // signUp, signIn, signOut 逻辑保持不变
+    async function signUp(email, password, nickname) {
+        const { data, error } = await supabase.auth.signUp({
+            email,
+            password,
+            options: { data: { nickname: nickname } }
+        })
+        if (error) throw error
+        router.push('/')
     }
-  }
 
-  function cacheWordExplanation({ wordId, explanation }) {
-    const word = allWords.value.find(w => w.id === wordId);
-    if (word) {
-      word.ai_explanation = explanation;
+    async function signIn(email, password) {
+        const { data, error } = await supabase.auth.signInWithPassword({ email, password })
+        if (error) throw error
+        router.push('/')
     }
-  }
 
-  async function updateSentenceStatus(sentenceId, testResults) {
-    const userStore = useUserStore();
-    if (!userStore.user) return;
-    const isMastered = testResults.every(result => result.isCorrect);
-    const progressData = {
-      user_id: userStore.user.id,
-      sentence_id: sentenceId,
-      is_studied: true,
-      is_mastered: isMastered,
-    };
-    const { error } = await supabase
-      .from('user_progress')
-      .upsert(progressData, { onConflict: 'user_id, sentence_id' });
-    if (error) {
-      console.error('更新或插入用户进度失败:', error);
+    async function signOut() {
+        await supabase.auth.signOut()
+        // setUser(null) 会被 onAuthStateChange 自动触发，这里无需重复调用
+        router.push('/login')
     }
-  }
 
-  function saveProgress() {
-    const userStore = useUserStore();
-    userStore.updateSessionProgress({
-        current_session_progress: currentSentenceIndex.value
-    });
-  }
-
-  function goToNext() {
-    if (currentSentenceIndex.value < allSentencesInSession.value.length - 1) {
-      currentSentenceIndex.value++;
-      saveProgress();
+    // 4. 新增：一个 Promise，用于在路由守卫中等待
+    const waitForAuth = () => {
+        return new Promise(resolve => {
+            if (authReady.value) {
+                resolve()
+            } else {
+                const unwatch = watch(authReady, (newValue) => {
+                    if (newValue) {
+                        unwatch()
+                        resolve()
+                    }
+                })
+            }
+        })
     }
-  }
 
-  function goToPrev() {
-    if (currentSentenceIndex.value > 0) {
-      currentSentenceIndex.value--;
-      saveProgress();
+    // 5. 将 Supabase 的认证状态监听器放在这里，作为单一数据源
+    supabase.auth.onAuthStateChange((event, session) => {
+        setUser(session?.user ?? null)
+    })
+
+    return {
+        user,
+        profile,
+        isLoggedIn,
+        authReady,      // 导出
+        setUser,
+        updateUserProfile,
+        signUp,
+        signIn,
+        signOut,
+        waitForAuth,    // 导出
     }
-  }
-
-  function jumpTo(index) {
-    if (index >= 0 && index < allSentencesInSession.value.length) {
-      currentSentenceIndex.value = index;
-      saveProgress();
-    }
-  }
-
-  return {
-    isLoading, currentSentence, progress, allSentencesInSession, allWords,
-    currentSentenceIndex, startSession, goToNext, goToPrev, jumpTo,
-    cacheWordExplanation, updateSentenceStatus, resumeSession
-  }
 })
