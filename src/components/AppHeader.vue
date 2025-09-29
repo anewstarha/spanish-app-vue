@@ -1,10 +1,10 @@
 <script setup>
-// ... (script 部分保持不变)
 import { ref } from 'vue'
-import { RouterLink, useRoute } from 'vue-router'
 import { useUserStore } from '@/stores/userStore'
-import { GlobeEuropeAfricaIcon, UserCircleIcon } from '@heroicons/vue/24/solid'
+import { UserCircleIcon } from '@heroicons/vue/24/solid'
 import ProfileModal from './ProfileModal.vue'
+// 1. 导入您的新 Logo 图片
+import appLogo from '@/assets/app-logo.png';
 
 const store = useUserStore()
 const isMenuOpen = ref(false)
@@ -23,7 +23,7 @@ function openProfileModal() {
 <template>
   <header class="app-header">
     <div class="logo">
-      <GlobeEuropeAfricaIcon class="logo-icon" />
+      <img :src="appLogo" alt="App Logo" class="logo-icon" />
       <span>APRENDE ESPAÑOL</span>
     </div>
 
@@ -45,7 +45,12 @@ function openProfileModal() {
 <style scoped>
 .app-header { display: flex; justify-content: space-between; align-items: center; padding: 15px 0; }
 .logo { display: flex; align-items: center; font-weight: 700; font-size: 16px; }
-.logo-icon { width: 28px; height: 28px; margin-right: 8px; color: var(--accent-blue); }
+.logo-icon {
+  width: 28px;
+  height: 28px;
+  margin-right: 8px;
+  /* 移除了 color 属性，因为图片自带颜色 */
+}
 
 .auth-links-placeholder {
     width: 36px;
@@ -63,10 +68,8 @@ function openProfileModal() {
   background-color: white;
   border-radius: 8px;
   box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-  /* --- 核心改动在这里 --- */
-  min-width: 140px; /* 我们可以保留一个最小宽度，防止内容过短时太窄 */
-  width: max-content; /* 关键：让宽度由最长的内容自动撑开 */
-  /* --- 核心改动结束 --- */
+  min-width: 140px;
+  width: max-content;
   padding: 8px 0;
   z-index: 100;
 }
