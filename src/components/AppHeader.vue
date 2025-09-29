@@ -24,7 +24,7 @@ function openProfileModal() {
   <header class="app-header">
     <div class="logo">
       <img :src="appLogo" alt="App Logo" class="logo-icon" />
-      <span>APRENDE ESPAÑOL</span>
+      <span>APRENDE ESPAÑOL v2</span>
     </div>
 
     <div v-if="store.isLoggedIn" class="user-menu-container">
