@@ -30,3 +30,14 @@ export function splitSentenceForTts(sentence) {
                  .split(/\s+/)
                  .filter(word => word.length > 0);
 }
+/**
+ * [新增] 将文本中的西班牙语单词包裹在可点击的span标签中
+ * @param {string} text - 输入的文本字符串
+ * @returns {string} - 返回处理后的 HTML 字符串
+ */
+export function linkifySpanishWords(text) {
+  if (!text) return '';
+  // 这个正则表达式会匹配包含西班牙语特殊字符的单词
+  const spanishWordRegex = /([a-zA-ZñÑáéíóúüÁÉÍÓÚÜ]+)/g;
+  return text.replace(spanishWordRegex, '<span class="clickable-word" data-word="$1">$1</span>');
+}
