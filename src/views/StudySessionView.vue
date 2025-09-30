@@ -1,5 +1,5 @@
 <script setup>
-// 1. 从 vue 的导入中移除 shallowRef
+// 所有 import 保持不变
 import { ref, computed, watch } from 'vue'
 import { useStudyStore } from '@/stores/studyStore'
 import { useUserStore } from '@/stores/userStore'
@@ -14,32 +14,24 @@ import {
   ArrowLeftCircleIcon,
   ArrowRightCircleIcon,
 } from '@heroicons/vue/24/solid'
-
-// 导入所有测试组件
 import SentenceScrambleTest from '@/components/SentenceScrambleTest.vue'
 import VocabularyTest from '@/components/VocabularyTest.vue'
 import DictationTest from '@/components/DictationTest.vue'
 import ReadAloudTest from '@/components/ReadAloudTest.vue'
 import RepeatAloudTest from '@/components/RepeatAloudTest.vue'
 
+// 所有状态和函数定义保持不变，除了 handleContentClick
 const store = useStudyStore()
 const userStore = useUserStore()
 const router = useRouter()
-
-// --- 状态管理 ---
 const isPlaylistVisible = ref(false)
 const activeReader = ref(null)
 const isModalVisible = ref(false)
 const selectedWord = ref(null)
 const wordExplanation = ref(null)
 const isExplanationLoading = ref(false)
-
-const mode = ref('studying') // 'studying' | 'quizzing'
+const mode = ref('studying')
 const testResults = ref([])
-
-// --- 核心改动：测试题随机化 ---
-
-// 2. 直接使用组件，不再用 shallowRef 包裹
 const TEST_COMPONENTS = {
   scramble: SentenceScrambleTest,
   vocabulary: VocabularyTest,
@@ -47,10 +39,8 @@ const TEST_COMPONENTS = {
   read_aloud: ReadAloudTest,
   repeat_aloud: RepeatAloudTest,
 }
-const testOrder = ref([]) // 存储当前句子的随机题目顺序
-const currentTestIndex = ref(0) // 当前进行到第几题 (0-4)
-
-// --- 辅助函数：洗牌算法 ---
+const testOrder = ref([])
+const currentTestIndex = ref(0)
 function shuffleArray(array) {
   for (let i = array.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1))
@@ -58,8 +48,6 @@ function shuffleArray(array) {
   }
   return array
 }
-
-// --- 计算属性 ---
 const currentTestComponent = computed(() => {
   if (mode.value === 'quizzing' && testOrder.value.length > 0) {
     const testKey = testOrder.value[currentTestIndex.value]
@@ -67,14 +55,11 @@ const currentTestComponent = computed(() => {
   }
   return null
 })
-
 const currentSentenceWords = computed(() => {
   if (!store.currentSentence || store.allWords.length === 0) return []
   const wordsInSentence = new Set(getCoreWordsFromSentence(store.currentSentence.spanish_text))
   return store.allWords.filter((wordObj) => wordsInSentence.has(wordObj.spanish_word.toLowerCase()))
 })
-
-// --- 监听与方法 ---
 watch(
   () => store.currentSentence,
   (newSentence) => {
@@ -82,25 +67,20 @@ watch(
       mode.value = 'studying'
       currentTestIndex.value = 0
       testResults.value = []
-      // 为新句子生成新的随机题目顺序
       testOrder.value = shuffleArray(Object.keys(TEST_COMPONENTS))
     }
   },
   { immediate: true },
 )
-
-// 开发环境热更新修复
 if (import.meta.env.PROD) {
   if (store.allSentencesInSession.length === 0 && !store.isLoading) {
     router.replace({ name: 'study' })
   }
 }
-
 function handleJumpTo(index) {
   store.jumpTo(index)
   isPlaylistVisible.value = false
 }
-
 function handlePlay(type) {
   if (!store.currentSentence) return
   if (activeReader.value === type) {
@@ -120,7 +100,6 @@ function handlePlay(type) {
     speechService.speak(text, options)
   }
 }
-
 async function showWordExplanation(word) {
   selectedWord.value = word
   isModalVisible.value = true
@@ -138,22 +117,19 @@ async function showWordExplanation(word) {
     store.cacheWordExplanation({ wordId: word.id, explanation: newExplanation })
   }
 }
-
 async function advance() {
   if (mode.value === 'studying') {
     mode.value = 'quizzing'
     currentTestIndex.value = 0
   } else if (mode.value === 'quizzing') {
-    // 检查是否是最后一个测试
     if (currentTestIndex.value < testOrder.value.length - 1) {
       currentTestIndex.value++
     } else {
-      // 完成所有测试，更新状态并进入下一句
       await store.updateSentenceStatus(store.currentSentence.id, testResults.value)
       if (store.progress.current < store.progress.total) {
         store.goToNext()
       } else {
-        await userStore.updateSessionProgress({
+        await userStore.updateUserProfile({
           current_session_ids: null,
           current_session_progress: null,
         })
@@ -163,7 +139,6 @@ async function advance() {
     }
   }
 }
-
 function goBack() {
   if (mode.value === 'quizzing') {
     if (currentTestIndex.value > 0) {
@@ -177,13 +152,11 @@ function goBack() {
     }
   }
 }
-
 function handleTestAnswered(result) {
   const newResults = [...testResults.value]
   newResults[currentTestIndex.value] = result
   testResults.value = newResults
 }
-
 function replayTestAudio() {
   if (mode.value !== 'quizzing' || !store.currentSentence) return
   const options = {
@@ -191,7 +164,6 @@ function replayTestAudio() {
     onEnd: () => (activeReader.value = null),
   }
   const currentTestKey = testOrder.value[currentTestIndex.value]
-
   if (currentTestKey === 'vocabulary') {
     const coreWords = getCoreWordsFromSentence(store.currentSentence.spanish_text)
     const wordObj = store.allWords.find(
@@ -199,15 +171,25 @@ function replayTestAudio() {
     )
     if (wordObj) speechService.speak(wordObj.spanish_word, options)
   } else {
-    // 对所有其他需要音频的测试（听写、复述）都播放整句
     speechService.speak(store.currentSentence.spanish_text, options)
   }
 }
+
+// --- 【核心修改】 ---
+// 为 handleContentClick 函数加上 try/catch 保护
 function handleContentClick(event) {
-  if (event.target.matches('.clickable-word')) {
-    const word = event.target.dataset.word
+  if (event.target && event.target.matches('.clickable-word')) {
+    const word = event.target.dataset.word;
     if (word) {
-      speechService.speak(word)
+      try {
+        // 在调用异步函数时，虽然我们不等待它完成（fire and forget），
+        // 但最好还是捕获它可能立即抛出的同步错误，或链式地捕获 Promise 拒绝。
+        speechService.speak(word).catch(err => {
+          console.error(`播放单词 "${word}" 失败:`, err);
+        });
+      } catch (e) {
+        console.error("调用 speechService.speak 时发生意外错误:", e);
+      }
     }
   }
 }

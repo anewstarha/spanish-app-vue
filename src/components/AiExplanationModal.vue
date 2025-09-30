@@ -1,6 +1,5 @@
 <script setup>
 import { defineProps, defineEmits } from 'vue';
-// 导入我们创建的辅助函数和发音服务
 import { linkifySpanishWords } from '@/utils/textUtils';
 import * as speechService from '@/services/speechService';
 
@@ -11,15 +10,19 @@ defineProps({
 });
 const emit = defineEmits(['close']);
 
-/**
- * 处理容器内的点击事件（事件委托）
- * 如果点击的是一个可发音的单词，则调用发音服务
- */
+// --- 【核心修改】 ---
+// 为 handleContentClick 函数加上 try/catch 保护
 function handleContentClick(event) {
-  if (event.target.matches('.clickable-word')) {
+  if (event.target && event.target.matches('.clickable-word')) {
     const word = event.target.dataset.word;
     if (word) {
-      speechService.speak(word);
+      try {
+        speechService.speak(word).catch(err => {
+          console.error(`播放单词 "${word}" 失败:`, err);
+        });
+      } catch (e) {
+        console.error("调用 speechService.speak 时发生意外错误:", e);
+      }
     }
   }
 }
