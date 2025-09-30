@@ -1,199 +1,177 @@
 <script setup>
-import { ref, computed, watch, onMounted, onUnmounted } from 'vue'; // 【已修正】导入 onMounted 和 onUnmounted
-import { useStudyStore } from '@/stores/studyStore';
-import { useUserStore } from '@/stores/userStore';
-import { useUiStore } from '@/stores/uiStore'; // 【已修正】导入 uiStore
-import { useRouter } from 'vue-router';
-import * as speechService from '@/services/speechService';
-import AiExplanationModal from '@/components/AiExplanationModal.vue';
-import { getCoreWordsFromSentence, linkifySpanishWords } from '@/utils/textUtils';
+// 所有 import 保持不变
+import { ref, computed, watch } from 'vue'
+import { useStudyStore } from '@/stores/studyStore'
+import { useUserStore } from '@/stores/userStore'
+import { useRouter } from 'vue-router'
+import * as speechService from '@/services/speechService'
+import AiExplanationModal from '@/components/AiExplanationModal.vue'
+import { getCoreWordsFromSentence, linkifySpanishWords } from '@/utils/textUtils'
 import {
   PlayCircleIcon,
   SpeakerWaveIcon,
   ViewColumnsIcon,
   ArrowLeftCircleIcon,
   ArrowRightCircleIcon,
-} from '@heroicons/vue/24/solid';
-import SentenceScrambleTest from '@/components/SentenceScrambleTest.vue';
-import VocabularyTest from '@/components/VocabularyTest.vue';
-import DictationTest from '@/components/DictationTest.vue';
-import ReadAloudTest from '@/components/ReadAloudTest.vue';
-import RepeatAloudTest from '@/components/RepeatAloudTest.vue';
+} from '@heroicons/vue/24/solid'
+import SentenceScrambleTest from '@/components/SentenceScrambleTest.vue'
+import VocabularyTest from '@/components/VocabularyTest.vue'
+import DictationTest from '@/components/DictationTest.vue'
+import ReadAloudTest from '@/components/ReadAloudTest.vue'
+import RepeatAloudTest from '@/components/RepeatAloudTest.vue'
 
-const store = useStudyStore();
-const userStore = useUserStore();
-const router = useRouter();
-const uiStore = useUiStore(); // 【已修正】获取 uiStore 实例
-
-// 【已修正】组件加载时隐藏导航，卸载时恢复
-onMounted(() => {
-  uiStore.setNavVisibility(false);
-});
-onUnmounted(() => {
-  uiStore.setNavVisibility(true);
-});
-
-// --- 其他所有逻辑保持不变 ---
-const isPlaylistVisible = ref(false);
-const activeReader = ref(null);
-const isModalVisible = ref(false);
-const selectedWord = ref(null);
-const wordExplanation = ref(null);
-const isExplanationLoading = ref(false);
-const mode = ref('studying');
-const testResults = ref([]);
+// 所有状态和函数定义保持不变
+const store = useStudyStore()
+const userStore = useUserStore()
+const router = useRouter()
+const isPlaylistVisible = ref(false)
+const activeReader = ref(null)
+const isModalVisible = ref(false)
+const selectedWord = ref(null)
+const wordExplanation = ref(null)
+const isExplanationLoading = ref(false)
+const mode = ref('studying')
+const testResults = ref([])
 const TEST_COMPONENTS = {
   scramble: SentenceScrambleTest,
   vocabulary: VocabularyTest,
   dictation: DictationTest,
   read_aloud: ReadAloudTest,
   repeat_aloud: RepeatAloudTest,
-};
-const testOrder = ref([]);
-const currentTestIndex = ref(0);
-
+}
+const testOrder = ref([])
+const currentTestIndex = ref(0)
 function shuffleArray(array) {
   for (let i = array.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1));
-    [array[i], array[j]] = [array[j], array[i]];
+    const j = Math.floor(Math.random() * (i + 1))
+    ;[array[i], array[j]] = [array[j], array[i]]
   }
-  return array;
+  return array
 }
-
 const currentTestComponent = computed(() => {
   if (mode.value === 'quizzing' && testOrder.value.length > 0) {
-    const testKey = testOrder.value[currentTestIndex.value];
-    return TEST_COMPONENTS[testKey];
+    const testKey = testOrder.value[currentTestIndex.value]
+    return TEST_COMPONENTS[testKey]
   }
-  return null;
-});
-
+  return null
+})
 const currentSentenceWords = computed(() => {
-  if (!store.currentSentence || store.allWords.length === 0) return [];
-  const wordsInSentence = new Set(getCoreWordsFromSentence(store.currentSentence.spanish_text));
-  return store.allWords.filter((wordObj) => wordsInSentence.has(wordObj.spanish_word.toLowerCase()));
-});
-
+  if (!store.currentSentence || store.allWords.length === 0) return []
+  const wordsInSentence = new Set(getCoreWordsFromSentence(store.currentSentence.spanish_text))
+  return store.allWords.filter((wordObj) => wordsInSentence.has(wordObj.spanish_word.toLowerCase()))
+})
 watch(
   () => store.currentSentence,
   (newSentence) => {
     if (newSentence) {
-      mode.value = 'studying';
-      currentTestIndex.value = 0;
-      testResults.value = [];
-      testOrder.value = shuffleArray(Object.keys(TEST_COMPONENTS));
+      mode.value = 'studying'
+      currentTestIndex.value = 0
+      testResults.value = []
+      testOrder.value = shuffleArray(Object.keys(TEST_COMPONENTS))
     }
   },
   { immediate: true },
-);
-
+)
 if (import.meta.env.PROD) {
   if (store.allSentencesInSession.length === 0 && !store.isLoading) {
-    router.replace({ name: 'study' });
+    router.replace({ name: 'study' })
   }
 }
-
 function handleJumpTo(index) {
-  store.jumpTo(index);
-  isPlaylistVisible.value = false;
+  store.jumpTo(index)
+  isPlaylistVisible.value = false
 }
-
 function handlePlay(type) {
-  if (!store.currentSentence) return;
+  if (!store.currentSentence) return
   if (activeReader.value === type) {
-    speechService.cancel();
-    activeReader.value = null;
-    return;
+    speechService.cancel()
+    activeReader.value = null
+    return
   }
-  const text = store.currentSentence.spanish_text;
+  const text = store.currentSentence.spanish_text
   const options = {
     isSlow: type === 'slow',
     onStart: () => (activeReader.value = type),
     onEnd: () => (activeReader.value = null),
-  };
+  }
   if (type === 'word') {
-    speechService.speakWordByWord(text, options);
+    speechService.speakWordByWord(text, options)
   } else {
-    speechService.speak(text, options);
+    speechService.speak(text, options)
   }
 }
-
 async function showWordExplanation(word) {
-  selectedWord.value = word;
-  isModalVisible.value = true;
-  wordExplanation.value = null;
-  isExplanationLoading.value = false;
+  selectedWord.value = word
+  isModalVisible.value = true
+  wordExplanation.value = null
+  isExplanationLoading.value = false
   if (word.ai_explanation && Object.keys(word.ai_explanation).length > 0) {
-    wordExplanation.value = word.ai_explanation;
-    return;
+    wordExplanation.value = word.ai_explanation
+    return
   }
-  isExplanationLoading.value = true;
-  const newExplanation = await speechService.getWordExplanation(word);
-  wordExplanation.value = newExplanation;
-  isExplanationLoading.value = false;
+  isExplanationLoading.value = true
+  const newExplanation = await speechService.getWordExplanation(word)
+  wordExplanation.value = newExplanation
+  isExplanationLoading.value = false
   if (newExplanation) {
-    store.cacheWordExplanation({ wordId: word.id, explanation: newExplanation });
+    store.cacheWordExplanation({ wordId: word.id, explanation: newExplanation })
   }
 }
-
 async function advance() {
   if (mode.value === 'studying') {
-    mode.value = 'quizzing';
-    currentTestIndex.value = 0;
+    mode.value = 'quizzing'
+    currentTestIndex.value = 0
   } else if (mode.value === 'quizzing') {
     if (currentTestIndex.value < testOrder.value.length - 1) {
-      currentTestIndex.value++;
+      currentTestIndex.value++
     } else {
-      await store.updateSentenceStatus(store.currentSentence.id, testResults.value);
+      await store.updateSentenceStatus(store.currentSentence.id, testResults.value)
       if (store.progress.current < store.progress.total) {
-        store.goToNext();
+        store.goToNext()
       } else {
         await userStore.updateUserProfile({
           current_session_ids: null,
           current_session_progress: null,
-        });
-        alert('¡Felicidades! Has completado todo el estudio y las pruebas de esta ronda.');
-        router.push({ name: 'study' });
+        })
+        alert('¡Felicidades! Has completado todo el estudio y las pruebas de esta ronda.')
+        router.push({ name: 'study' })
       }
     }
   }
 }
-
 function goBack() {
   if (mode.value === 'quizzing') {
     if (currentTestIndex.value > 0) {
-      currentTestIndex.value--;
+      currentTestIndex.value--
     } else {
-      mode.value = 'studying';
+      mode.value = 'studying'
     }
   } else {
     if (store.progress.current > 1) {
-      store.goToPrev();
+      store.goToPrev()
     }
   }
 }
-
 function handleTestAnswered(result) {
-  const newResults = [...testResults.value];
-  newResults[currentTestIndex.value] = result;
-  testResults.value = newResults;
+  const newResults = [...testResults.value]
+  newResults[currentTestIndex.value] = result
+  testResults.value = newResults
 }
-
 function replayTestAudio() {
-  if (mode.value !== 'quizzing' || !store.currentSentence) return;
+  if (mode.value !== 'quizzing' || !store.currentSentence) return
   const options = {
     onStart: () => (activeReader.value = 'replay'),
     onEnd: () => (activeReader.value = null),
-  };
-  const currentTestKey = testOrder.value[currentTestIndex.value];
+  }
+  const currentTestKey = testOrder.value[currentTestIndex.value]
   if (currentTestKey === 'vocabulary') {
-    const coreWords = getCoreWordsFromSentence(store.currentSentence.spanish_text);
+    const coreWords = getCoreWordsFromSentence(store.currentSentence.spanish_text)
     const wordObj = store.allWords.find(
       (w) => w.spanish_word.toLowerCase() === coreWords[0]?.toLowerCase(),
-    );
-    if (wordObj) speechService.speak(wordObj.spanish_word, options);
+    )
+    if (wordObj) speechService.speak(wordObj.spanish_word, options)
   } else {
-    speechService.speak(store.currentSentence.spanish_text, options);
+    speechService.speak(store.currentSentence.spanish_text, options)
   }
 }
 

@@ -1,8 +1,7 @@
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
+import { ref, computed, onMounted, watch, nextTick } from 'vue';
 import * as dataService from '@/services/dataService';
 import { useUserStore } from '@/stores/userStore';
-import { useUiStore } from '@/stores/uiStore'; // 【新增】
 import { useRouter } from 'vue-router';
 import { supabase } from '@/supabase';
 import AppHeader from '@/components/AppHeader.vue';
@@ -15,13 +14,13 @@ import { PlayCircleIcon, ArrowLeftCircleIcon, ArrowRightCircleIcon } from '@hero
 import * as speechService from '@/services/speechService';
 import { getCoreWordsFromSentence } from '@/utils/textUtils';
 
+// ... 其他 ref 和常量定义保持不变 ...
 const allSentences = ref([]);
 const allWords = ref([]);
 const allTags = ref([]);
 const isLoading = ref(true);
 const router = useRouter();
 const userStore = useUserStore();
-const uiStore = useUiStore(); // 【新增】
 const pageState = ref('filtering');
 const activeReader = ref(null);
 const filters = ref({
@@ -44,19 +43,6 @@ const TEST_COMPONENTS = {
 };
 const testKeys = Object.keys(TEST_COMPONENTS);
 
-// 【修改】监听 pageState 来控制导航栏可见性
-watch(pageState, (newState) => {
-  if (newState === 'quizzing' || newState === 'finished') {
-    uiStore.setNavVisibility(false); // 测试开始或结束后，隐藏主导航
-  } else {
-    uiStore.setNavVisibility(true); // 在筛选页面，显示主导航
-  }
-}, { immediate: true });
-
-// 【新增】组件卸载时，确保恢复主导航的可见性
-onUnmounted(() => {
-  uiStore.setNavVisibility(true);
-});
 
 onMounted(async () => {
   if (!userStore.user) {
@@ -64,11 +50,13 @@ onMounted(async () => {
     return;
   }
 
-  // 【修改】恢复测试的逻辑
+  // --- 【核心修改】 ---
   const unfinishedQuiz = userStore.profile?.current_quiz_questions;
+  // 检查导航状态，看是否是从主页的“快速测试”按钮跳转过来的
   const shouldAutoResume = history.state?.autoResume === true;
 
   if (unfinishedQuiz && unfinishedQuiz.length > 0) {
+    // 如果是自动恢复，或者用户确认继续，则恢复会话
     if (shouldAutoResume || confirm("Se encontró un test no finalizado. ¿Deseas continuar?")) {
         const progress = userStore.profile.current_quiz_progress || 0;
         quizQuestions.value = unfinishedQuiz;
@@ -76,11 +64,13 @@ onMounted(async () => {
         isAnswered.value = false;
         pageState.value = 'quizzing';
         isLoading.value = false;
-        return;
+        return; // 直接进入测试，跳过后续数据加载
     } else {
+        // 如果用户选择不继续，则清除未完成的测试状态
         await userStore.updateUserProfile({ current_quiz_questions: null, current_quiz_progress: null });
     }
   }
+  // --- 【修改结束】 ---
 
   try {
     const data = await dataService.getStudyData();
@@ -95,6 +85,7 @@ onMounted(async () => {
   }
 });
 
+// ... 其他所有函数 (filteredSentences, tagsWithCounts, etc.) 保持不变 ...
 const filteredSentences = computed(() => {
   if (!allSentences.value) return [];
   return allSentences.value.filter(sentence => {
@@ -110,7 +101,6 @@ const filteredSentences = computed(() => {
     return true;
   });
 });
-
 const tagsWithCounts = computed(() => {
     const counts = {};
     let untaggedCount = 0;
@@ -128,7 +118,6 @@ const tagsWithCounts = computed(() => {
     tagList.unshift({ name: 'Todos', count: preFiltered.length });
     return tagList.filter(t => t.count > 0);
 });
-
 const currentQuestion = computed(() => quizQuestions.value[currentQuestionIndex.value]);
 const currentTestComponent = computed(() => {
     if(currentQuestion.value) {
@@ -136,7 +125,6 @@ const currentTestComponent = computed(() => {
     }
     return null;
 });
-
 const showExpandButton = ref(false);
 const tagListRef = ref(null);
 watch(tagsWithCounts, () => {
@@ -146,14 +134,12 @@ watch(tagsWithCounts, () => {
         }
     });
 }, { deep: true, immediate: true });
-
 function collapseTags() {
     areTagsExpanded.value = false;
     if (contentWrapperRef.value) {
         contentWrapperRef.value.scrollTop = 0;
     }
 }
-
 function shuffleArray(array) {
   for (let i = array.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1));
@@ -161,15 +147,12 @@ function shuffleArray(array) {
   }
   return array;
 }
-
 async function startQuiz() {
   if (filteredSentences.value.length === 0) {
     alert('没有符合条件的句子可供练习。');
     return;
   }
-
   await userStore.updateUserProfile({ last_quiz_filters: filters.value });
-
   let allPossibleQuestions = [];
   filteredSentences.value.forEach(sentence => {
     testKeys.forEach(key => {
@@ -182,15 +165,12 @@ async function startQuiz() {
   quizQuestions.value = shuffleArray(allPossibleQuestions);
   currentQuestionIndex.value = 0;
   isAnswered.value = false;
-
   await userStore.updateUserProfile({
       current_quiz_questions: quizQuestions.value,
       current_quiz_progress: 0
   });
-
   pageState.value = 'quizzing';
 }
-
 async function advanceToNextQuestion() {
   if (isAnswered.value && currentQuestionIndex.value < quizQuestions.value.length - 1) {
     currentQuestionIndex.value++;
@@ -201,7 +181,6 @@ async function advanceToNextQuestion() {
     pageState.value = 'finished';
   }
 }
-
 async function goBack() {
     if(currentQuestionIndex.value > 0) {
         currentQuestionIndex.value--;
@@ -209,18 +188,15 @@ async function goBack() {
         await userStore.updateUserProfile({ current_quiz_progress: currentQuestionIndex.value });
     }
 }
-
 function handleAnswered(result) {
   isAnswered.value = true;
 }
-
 async function resetQuiz() {
     await userStore.updateUserProfile({ current_quiz_questions: null, current_quiz_progress: null });
     pageState.value = 'filtering';
     quizQuestions.value = [];
     currentQuestionIndex.value = 0;
 }
-
 function toggleTag(tag) {
   if (tag === 'Todos') {
     filters.value.tags = [];
@@ -230,7 +206,6 @@ function toggleTag(tag) {
   if (index > -1) filters.value.tags.splice(index, 1);
   else filters.value.tags.push(tag);
 }
-
 function replayTestAudio() {
   if (pageState.value !== 'quizzing' || !currentQuestion.value) return;
   const options = { onStart: () => activeReader.value = 'replay', onEnd: () => activeReader.value = null };
@@ -295,18 +270,11 @@ function replayTestAudio() {
                 </div>
             </div>
         </div>
-
         <div v-else-if="pageState === 'quizzing' && currentQuestion" class="quiz-container">
             <header class="quiz-header">
-                <button @click="resetQuiz" class="back-btn" title="Salir de la prueba">
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" width="24" height="24">
-                        <path fill-rule="evenodd" d="M12.79 5.23a.75.75 0 01-.02 1.06L8.832 10l3.938 3.71a.75.75 0 11-1.04 1.08l-4.5-4.25a.75.75 0 010-1.08l4.5-4.25a.75.75 0 011.06.02z" clip-rule="evenodd" />
-                    </svg>
-                </button>
                 <div class="progress-text">
                     {{ currentQuestionIndex + 1 }} / {{ quizQuestions.length }}
                 </div>
-                <div class="placeholder"></div>
             </header>
             <main class="quiz-main">
                 <component
@@ -341,34 +309,79 @@ function replayTestAudio() {
 </template>
 
 <style scoped>
-/* 大部分样式保持不变 */
-.page-container { padding: 0 var(--spacing-md); display: flex; flex-direction: column; height: 100%; background-color: #f2f2f7; }
+/* Estilos existentes de QuizView... */
+.page-container {
+    padding: 0 var(--spacing-md);
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    background-color: #f2f2f7;
+}
 .filter-wrapper { height: 100%; display: flex; flex-direction: column; }
 .loading-indicator { margin: auto; }
-.content-wrapper { flex-grow: 1; display: flex; min-height: 0; overflow: hidden; }
-.main-card { background: white; border-radius: var(--spacing-lg); padding: var(--spacing-lg); box-shadow: 0 8px 30px rgba(0,0,0,0.1); width: 100%; max-width: 500px; margin: auto; box-sizing: border-box; display: flex; flex-direction: column; gap: var(--spacing-lg); }
-.filter-section { display: flex; flex-direction: column; gap: var(--spacing-md); }
-.filter-group { display: flex; flex-direction: column; align-items: flex-start; gap: var(--spacing-sm); }
-.filter-group label { font-weight: 600; color: var(--primary-text); font-size: var(--font-size-md); margin-right: var(--spacing-sm); flex-shrink: 0; }
-@media (min-width: 480px) { .filter-group { flex-direction: row; align-items: center; justify-content: space-between; } }
-.tags-section { display: flex; flex-direction: column; gap: var(--spacing-sm); flex-grow: 1; min-height: 0; }
-.section-title { font-weight: 600; color: var(--primary-text); font-size: var(--font-size-md); flex-shrink: 0; }
-.tag-list { display: flex; flex-wrap: wrap; gap: var(--spacing-sm); max-height: 7.5rem; overflow-y: auto; }
-.is-expanded .tag-list { max-height: none; overflow: visible; }
-.expand-btn { border: none; background: none; color: var(--accent-blue); font-weight: 600; cursor: pointer; text-align: left; padding: var(--spacing-xs) 0; }
-.action-section { border-top: 1px solid #f0f0f0; padding-top: var(--spacing-lg); }
-.quiz-container { display: flex; flex-direction: column; height: 100%; background-color: #f2f2f7; }
-.quiz-header {
-    /* 【修改】 */
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 10px;
-    padding-top: calc(10px + env(safe-area-inset-top));
-    background-color: white;
-    border-bottom: 1px solid #e5e5e5;
-    flex-shrink: 0;
+.content-wrapper {
+  flex-grow: 1;
+  display: flex;
+  min-height: 0;
+  overflow: hidden;
 }
+.main-card {
+    background: white; border-radius: var(--spacing-lg); padding: var(--spacing-lg);
+    box-shadow: 0 8px 30px rgba(0,0,0,0.1);
+    width: 100%; max-width: 500px; margin: auto; box-sizing: border-box;
+    display: flex; flex-direction: column;
+    gap: var(--spacing-lg);
+}
+.filter-section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-md);
+}
+.filter-group {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--spacing-sm);
+}
+.filter-group label {
+    font-weight: 600; color: var(--primary-text); font-size: var(--font-size-md);
+    margin-right: var(--spacing-sm); flex-shrink: 0;
+}
+@media (min-width: 480px) {
+    .filter-group {
+        flex-direction: row;
+        align-items: center;
+        justify-content: space-between;
+    }
+}
+.tags-section {
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+    flex-grow: 1;
+    min-height: 0;
+}
+.section-title { font-weight: 600; color: var(--primary-text); font-size: var(--font-size-md); flex-shrink: 0; }
+.tag-list {
+  display: flex; flex-wrap: wrap; gap: var(--spacing-sm);
+  max-height: 7.5rem;
+  overflow-y: auto;
+}
+.is-expanded .tag-list {
+    max-height: none;
+    overflow: visible;
+}
+.expand-btn {
+    border: none; background: none; color: var(--accent-blue);
+    font-weight: 600; cursor: pointer; text-align: left;
+    padding: var(--spacing-xs) 0;
+}
+.action-section {
+    border-top: 1px solid #f0f0f0;
+    padding-top: var(--spacing-lg);
+}
+.quiz-container { display: flex; flex-direction: column; height: 100%; background-color: #f2f2f7; }
+.quiz-header { text-align: center; padding: 10px; padding-top: calc(10px + env(safe-area-inset-top)); background-color: white; border-bottom: 1px solid #e5e5e5; flex-shrink: 0; }
 .progress-text { font-weight: 600; font-size: var(--font-size-base); }
 .quiz-main { flex-grow: 1; padding: var(--spacing-lg) var(--spacing-md); overflow-y: auto; }
 .quiz-footer { display: flex; justify-content: space-around; align-items: stretch; background-color: white; border-top: 1px solid #e5e5e5; padding-bottom: env(safe-area-inset-bottom); flex-shrink: 0; }
@@ -380,25 +393,30 @@ function replayTestAudio() {
 .finished-container { display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; gap: var(--spacing-lg); padding: var(--spacing-lg); flex-grow: 1; }
 .secondary-button { background: none; border: none; color: var(--accent-blue); font-weight: 600; cursor: pointer; }
 .pill-switch { display: flex; background-color: #f0f2f5; border-radius: 8px; padding: var(--spacing-xs); }
-.pill-switch button { padding: var(--spacing-xs) var(--spacing-md); font-size: var(--font-size-md); border: none; background-color: transparent; border-radius: 6px; font-weight: 500; cursor: pointer; color: #888; }
-.pill-switch button.active { background-color: white; color: #333; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
-.tag { font-size: var(--font-size-md); font-weight: 500; border: 1px solid #e0e0e0; background-color: #f7f7f7; color: var(--primary-text); cursor: pointer; border-radius: 999px; padding: var(--spacing-xs) var(--spacing-xs) var(--spacing-xs) var(--spacing-md); display: inline-flex; align-items: center; gap: var(--spacing-xs); transition: all 0.2s ease; }
-.tag.active { color: white; background-color: #4A90E2; border-color: #4A90E2; }
-.tag span { font-size: var(--font-size-sm); font-weight: 600; color: var(--primary-text); background-color: #e0e0e0; min-width: 1.5em; height: 1.5em; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; transition: all 0.2s ease; }
-.tag.active span { color: #4A90E2; background-color: white; }
-/* 【新增】返回按钮和占位符样式 */
-.back-btn {
-    background: none;
-    border: none;
-    cursor: pointer;
-    padding: 5px;
-    color: var(--primary-text);
-    display: flex;
-    align-items: center;
-    justify-content: center;
+.pill-switch button {
+    padding: var(--spacing-xs) var(--spacing-md); font-size: var(--font-size-md);
+    border: none; background-color: transparent; border-radius: 6px;
+    font-weight: 500; cursor: pointer; color: #888;
 }
-.placeholder {
-    width: 34px; /* 与按钮宽度大致相等，以保证标题居中 */
-    height: 34px;
+.pill-switch button.active { background-color: white; color: #333; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+.tag {
+  font-size: var(--font-size-md); font-weight: 500; border: 1px solid #e0e0e0;
+  background-color: #f7f7f7; color: var(--primary-text);
+  cursor: pointer; border-radius: 999px;
+  padding: var(--spacing-xs) var(--spacing-xs) var(--spacing-xs) var(--spacing-md);
+  display: inline-flex; align-items: center;
+  gap: var(--spacing-xs); transition: all 0.2s ease;
+}
+.tag.active { color: white; background-color: #4A90E2; border-color: #4A90E2; }
+.tag span {
+  font-size: var(--font-size-sm); font-weight: 600; color: var(--primary-text);
+  background-color: #e0e0e0; min-width: 1.5em; height: 1.5em;
+  border-radius: 50%; display: inline-flex; align-items: center; justify-content: center;
+  transition: all 0.2s ease;
+}
+.tag.active span { color: #4A90E2; background-color: white; }
+.action-section .btn {
+  width: 100%;
+  box-sizing: border-box; /* 这是一个好习惯，确保 padding 不会导致宽度溢出容器 */
 }
 </style>
