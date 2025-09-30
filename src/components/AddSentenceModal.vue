@@ -2,6 +2,8 @@
 import { ref, watch } from 'vue';
 import { supabase } from '@/supabase';
 import { useUserStore } from '@/stores/userStore';
+// 导入我们新鲜出炉的、高效的词汇同步服务
+import { syncWordBankForSentenceChange } from '@/services/wordService.js';
 
 const props = defineProps({
   show: Boolean
@@ -30,75 +32,61 @@ async function handleSubmit() {
 
   isProcessing.value = true;
   errorMessage.value = '';
-  statusMessage.value = '启动处理流程...';
 
   try {
+    // 步骤 1: 准备并去重句子
+    statusMessage.value = '正在检查重复句子...';
     const lines = spanishText.value.trim().split('\n').filter(line => line.trim().length > 0);
     if (lines.length === 0) throw new Error("输入内容不能为空。");
-    statusMessage.value = `识别到 ${lines.length} 条句子，正在获取翻译与AI解释...`;
 
-    // ... (去重逻辑保持不变) ...
     const { data: existing } = await supabase.from('sentences').select('spanish_text').eq('user_id', store.user.id);
     const existingSet = new Set((existing || []).map(s => s.spanish_text));
     const toAdd = lines.map(line => ({ spanish_text: line.trim() })).filter(s => !existingSet.has(s.spanish_text));
     const duplicateCount = lines.length - toAdd.length;
+
     if (toAdd.length === 0) {
       throw new Error(`没有新的句子可添加。${duplicateCount > 0 ? `忽略了 ${duplicateCount} 个重复项。` : ''}`);
     }
 
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) throw new Error("用户未登录或会话已过期。");
+    // 步骤 2: 调用 explain-sentence 获取翻译 (不获取解释，加快速度)
+    statusMessage.value = `识别到 ${toAdd.length} 条新句子，正在获取翻译...`;
 
-    const payload = {
-      sentences: toAdd,
-      getTranslation: true,
-      getExplanation: true
-    };
-
-    const functionUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/explain-sentence`;
-    const headers = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` };
-
-    const response = await fetch(functionUrl, {
-        method: 'POST',
-        headers: headers,
-        body: JSON.stringify(payload)
+    const { data: translationResult, error: functionError } = await supabase.functions.invoke('explain-sentence', {
+        body: { sentences: toAdd, getTranslation: true, getExplanation: false }
     });
-    if (!response.ok) {
-        const errorBody = await response.text();
-        throw new Error(`AI 服务出错 (${response.status}): ${errorBody}`);
-    }
 
-    const { translatedSentences } = await response.json();
-    if (!translatedSentences) throw new Error("AI服务返回的数据格式不正确。");
+    if(functionError) throw functionError;
+    if (!translationResult || !translationResult.translatedSentences) throw new Error("AI翻译服务返回的数据格式不正确。");
 
-    statusMessage.value = 'AI处理成功，正在存入数据库...';
+    // 将返回的翻译（可能只是一个纯翻译文本数组）与原始西班牙语文本合并
+    const sentencesWithTranslation = toAdd.map((originalSentence, index) => {
+        return {
+            spanish_text: originalSentence.spanish_text,
+            chinese_translation: translationResult.translatedSentences[index]?.chinese_translation || '（翻译失败）'
+        };
+    });
 
+    // 步骤 3: 将带有翻译的句子写入数据库
+    statusMessage.value = '翻译获取成功，正在存入数据库...';
     const finalTags = tagsInput.value.trim() ? tagsInput.value.split(/[,，\s]+/).filter(t => t) : [];
-    const sentencesToInsert = translatedSentences.map(s => ({
+    const sentencesToInsert = sentencesWithTranslation.map(s => ({
       ...s,
       user_id: store.user.id,
-      tags: finalTags.length > 0 ? finalTags : null
+      tags: finalTags.length > 0 ? finalTags : null,
+      ai_notes: null
     }));
 
     const { error: insertError } = await supabase.from('sentences').insert(sentencesToInsert);
     if (insertError) throw insertError;
 
+    // 步骤 4: 调用我们高效的“增量同步”服务来更新词库
     statusMessage.value = '句子保存成功，正在同步个人词库...';
+    // 为了效率，将所有新句子文本合并，进行一次性同步
+    const allNewSentencesText = sentencesToInsert.map(s => s.spanish_text).join('\n');
+    await syncWordBankForSentenceChange({ newSentenceText: allNewSentencesText });
 
-    // --- 【核心修改】 ---
-    // 直接调用云函数，并传递新添加的句子文本
-    // 因为“精准同步”速度很快，所以我们使用 await 等待它完成
-    const newSentencesText = sentencesToInsert.map(s => s.spanish_text);
-    const { error: syncError } = await supabase.functions.invoke('generateAndUpdateHighFrequencyWords', {
-      body: { addedSentencesText: newSentencesText }
-    });
-
-    if (syncError) {
-        // 即使词库同步失败，句子也已添加成功，只在控制台报告错误
-        console.error("词库同步失败:", syncError);
-    }
-
-    statusMessage.value = `成功添加 ${sentencesToInsert.length} 条新句子！词库已同步。`;
+    // 步骤 5: 完成并提示用户
+    statusMessage.value = `成功添加 ${toAdd.length} 条新句子！词库已同步。`;
     if (duplicateCount > 0) {
         statusMessage.value += ` 忽略了 ${duplicateCount} 个重复项。`;
     }
@@ -110,7 +98,7 @@ async function handleSubmit() {
 
   } catch (error) {
     console.error('批量添加失败:', error);
-    errorMessage.value = error.message;
+    errorMessage.value = `失败: ${error.message}`;
     isProcessing.value = false;
   }
 }
@@ -147,6 +135,7 @@ async function handleSubmit() {
     </div>
   </div>
 </template>
+
 
 <style scoped>
 .modal-overlay {
