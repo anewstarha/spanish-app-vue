@@ -6,7 +6,6 @@ import { useUserStore } from '@/stores/userStore'
 import { useRouter } from 'vue-router'
 import * as speechService from '@/services/speechService'
 import AiExplanationModal from '@/components/AiExplanationModal.vue'
-import { getCoreWordsFromSentence, linkifySpanishWords } from '@/utils/textUtils'
 import {
   PlayCircleIcon,
   SpeakerWaveIcon,
