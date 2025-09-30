@@ -6,6 +6,7 @@ import { useUserStore } from '@/stores/userStore'
 import { useRouter } from 'vue-router'
 import * as speechService from '@/services/speechService'
 import AiExplanationModal from '@/components/AiExplanationModal.vue'
+import { getCoreWordsFromSentence, linkifySpanishWords } from '@/utils/textUtils'
 import {
   PlayCircleIcon,
   SpeakerWaveIcon,
@@ -13,7 +14,6 @@ import {
   ArrowLeftCircleIcon,
   ArrowRightCircleIcon,
 } from '@heroicons/vue/24/solid'
-import { getCoreWordsFromSentence } from '@/utils/textUtils'
 
 // 导入所有测试组件
 import SentenceScrambleTest from '@/components/SentenceScrambleTest.vue'
