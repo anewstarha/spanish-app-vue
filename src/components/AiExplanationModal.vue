@@ -1,10 +1,28 @@
 <script setup>
+import { defineProps, defineEmits } from 'vue';
+// 导入我们创建的辅助函数和发音服务
+import { linkifySpanishWords } from '@/utils/textUtils';
+import * as speechService from '@/services/speechService';
+
 defineProps({
   word: Object,
   explanation: Object,
   isLoading: Boolean,
 });
 const emit = defineEmits(['close']);
+
+/**
+ * 处理容器内的点击事件（事件委托）
+ * 如果点击的是一个可发音的单词，则调用发音服务
+ */
+function handleContentClick(event) {
+  if (event.target.matches('.clickable-word')) {
+    const word = event.target.dataset.word;
+    if (word) {
+      speechService.speak(word);
+    }
+  }
+}
 </script>
 
 <template>
@@ -14,13 +32,14 @@ const emit = defineEmits(['close']);
 
       <div v-if="isLoading" class="loading-spinner"></div>
 
-      <div v-else-if="explanation" class="explanation-content">
+      <div v-else-if="explanation" class="explanation-content" @click="handleContentClick">
+
         <div v-if="explanation.ipa" class="ai-section">
           <div class="ai-section-title">发音</div>
           <div class="ipa-container">
             <span class="ipa-text">{{ explanation.ipa }}</span>
           </div>
-          <p v-if="explanation.pronunciationTip" class="pronunciation-tip">{{ explanation.pronunciationTip }}</p>
+          <p v-if="explanation.pronunciationTip" class="pronunciation-tip" v-html="linkifySpanishWords(explanation.pronunciationTip)"></p>
         </div>
 
         <div class="ai-section">
@@ -32,18 +51,18 @@ const emit = defineEmits(['close']);
 
         <div v-if="explanation.usageNotes" class="ai-section">
           <div class="ai-section-title">用法与搭配</div>
-          <p v-html="explanation.usageNotes.replace(/\n/g, '<br>')"></p>
+          <p v-html="linkifySpanishWords(explanation.usageNotes)"></p>
         </div>
 
         <div v-if="explanation.mnemonic" class="ai-section">
           <div class="ai-section-title">联想记忆</div>
-          <p v-html="explanation.mnemonic.replace(/\n/g, '<br>')"></p>
+          <p v-html="linkifySpanishWords(explanation.mnemonic)"></p>
         </div>
 
         <div v-if="explanation.synonyms?.length || explanation.antonyms?.length" class="ai-section">
           <div class="ai-section-title">相关词汇</div>
-          <p v-if="explanation.synonyms?.length"><strong>近义词:</strong> {{ explanation.synonyms.join(', ') }}</p>
-          <p v-if="explanation.antonyms?.length"><strong>反义词:</strong> {{ explanation.antonyms.join(', ') }}</p>
+          <p v-if="explanation.synonyms?.length"><strong>近义词:</strong> <span v-html="linkifySpanishWords(explanation.synonyms.join(', '))"></span></p>
+          <p v-if="explanation.antonyms?.length"><strong>反义词:</strong> <span v-html="linkifySpanishWords(explanation.antonyms.join(', '))"></span></p>
         </div>
       </div>
 
@@ -55,7 +74,7 @@ const emit = defineEmits(['close']);
 </template>
 
 <style scoped>
-/* 样式与 StudySessionView 的 playlist-modal 类似，但为内容优化 */
+/* 样式与您提供的版本保持一致 */
 .modal-overlay {
   position: fixed;
   top: 0; left: 0; right: 0; bottom: 0;
@@ -83,7 +102,7 @@ const emit = defineEmits(['close']);
   margin: 0 0 15px 0;
   color: #333;
 }
-.loading-spinner { /* 省略 spinner 样式，你可以复用项目已有的 */
+.loading-spinner {
   border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%;
   width: 40px; height: 40px; animation: spin 1s linear infinite; margin: 20px auto;
 }
@@ -104,4 +123,16 @@ const emit = defineEmits(['close']);
 }
 @keyframes scale-up { from { transform: scale(0.9); opacity: 0; } to { transform: scale(1); opacity: 1; } }
 @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+/* 新增样式，用于可点击单词 */
+:global(.clickable-word) {
+  cursor: pointer;
+  background-color: #e6f3ff;
+  border-radius: 4px;
+  padding: 0 2px;
+  transition: background-color 0.2s ease;
+}
+:global(.clickable-word:hover) {
+  background-color: #cce7ff;
+}
 </style>
