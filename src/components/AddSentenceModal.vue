@@ -3,9 +3,6 @@ import { ref, watch } from 'vue';
 import { supabase } from '@/supabase';
 import { useUserStore } from '@/stores/userStore';
 
-// 假设您的项目中有一个 wordUtils.js 文件导出了这个函数
-// import { generateAndUpdateHighFrequencyWords } from '@/utils/wordUtils';
-
 const props = defineProps({
   show: Boolean
 });
@@ -50,12 +47,17 @@ async function handleSubmit() {
       throw new Error(`没有新的句子可添加。${duplicateCount > 0 ? `忽略了 ${duplicateCount} 个重复项。` : ''}`);
     }
 
-    statusMessage.value = `去重完毕，${toAdd.length} 条新句子正在获取翻译...`;
+    statusMessage.value = `去重完毕，${toAdd.length} 条新句子正在获取翻译与AI解释...`;
 
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) throw new Error("用户未登录或会话已过期。");
 
-    const payload = { sentences: toAdd, getTranslation: true };
+    const payload = {
+      sentences: toAdd,
+      getTranslation: true,
+      getExplanation: true
+    };
+
     const functionUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/explain-sentence`;
     const headers = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` };
 
@@ -66,13 +68,13 @@ async function handleSubmit() {
     });
     if (!response.ok) {
         const errorBody = await response.text();
-        throw new Error(`AI 翻译服务出错 (${response.status}): ${errorBody}`);
+        throw new Error(`AI 服务出错 (${response.status}): ${errorBody}`);
     }
 
     const { translatedSentences } = await response.json();
     if (!translatedSentences) throw new Error("AI服务返回的数据格式不正确。");
 
-    statusMessage.value = '翻译成功，正在存入数据库...';
+    statusMessage.value = 'AI处理成功，正在存入数据库...';
 
     const finalTags = tagsInput.value.trim() ? tagsInput.value.split(/[,，\s]+/).filter(t => t) : [];
     const sentencesToInsert = translatedSentences.map(s => ({
@@ -84,11 +86,13 @@ async function handleSubmit() {
     const { error: insertError } = await supabase.from('sentences').insert(sentencesToInsert);
     if (insertError) throw insertError;
 
-    statusMessage.value = '正在更新个人词库...';
-    // await generateAndUpdateHighFrequencyWords(store.user.id);
-    console.log("（占位）高频词更新逻辑需要在此处被调用。");
+    statusMessage.value = '句子保存成功，正在触发个人词库更新...';
 
-    statusMessage.value = `成功添加 ${sentencesToInsert.length} 条新句子！`;
+    supabase.functions.invoke('generateAndUpdateHighFrequencyWords', {
+      body: { userId: store.user.id }
+    });
+
+    statusMessage.value = `成功添加 ${sentencesToInsert.length} 条新句子！词库更新已在后台开始。`;
     if (duplicateCount > 0) {
         statusMessage.value += ` 忽略了 ${duplicateCount} 个重复项。`;
     }
@@ -96,7 +100,7 @@ async function handleSubmit() {
     setTimeout(() => {
         emit('sentences-added');
         emit('close');
-    }, 1500);
+    }, 2000);
 
   } catch (error) {
     console.error('批量添加失败:', error);
@@ -110,7 +114,7 @@ async function handleSubmit() {
   <div v-if="show" class="modal-overlay" @click.self="!isProcessing && emit('close')">
     <div class="modal-content">
       <div class="modal-header">
-        <h3>添加新句子</h3>
+        <h3>批量添加新句子</h3>
         <button @click="emit('close')" class="close-btn" :disabled="isProcessing">&times;</button>
       </div>
       <div class="modal-body">
@@ -139,7 +143,6 @@ async function handleSubmit() {
 </template>
 
 <style scoped>
-/* 样式部分保持不变 */
 .modal-overlay {
   position: fixed; top: 0; left: 0; width: 100%; height: 100%;
   background-color: rgba(0, 0, 0, 0.6);
