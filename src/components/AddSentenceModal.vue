@@ -3,9 +3,6 @@ import { ref, watch } from 'vue';
 import { supabase } from '@/supabase';
 import { useUserStore } from '@/stores/userStore';
 
-// 假设您的项目中有一个 wordUtils.js 文件导出了这个函数
-// import { generateAndUpdateHighFrequencyWords } from '@/utils/wordUtils';
-
 const props = defineProps({
   show: Boolean
 });
@@ -18,6 +15,7 @@ const isProcessing = ref(false);
 const errorMessage = ref('');
 const statusMessage = ref('');
 
+// 当模态框显示时，重置所有状态
 watch(() => props.show, (newValue) => {
   if (newValue) {
     spanishText.value = '';
@@ -28,79 +26,52 @@ watch(() => props.show, (newValue) => {
   }
 });
 
+/**
+ * 经过重构的 handleSubmit 函数
+ * 职责：只负责将用户输入的原始句子和标签提交给后端入口云函数。
+ */
 async function handleSubmit() {
   if (!spanishText.value.trim() || isProcessing.value) return;
 
   isProcessing.value = true;
   errorMessage.value = '';
-  statusMessage.value = '启动处理流程...';
+  statusMessage.value = '正在提交您的句子...';
 
   try {
+    // 1. 准备最基础的数据
     const lines = spanishText.value.trim().split('\n').filter(line => line.trim().length > 0);
     if (lines.length === 0) throw new Error("输入内容不能为空。");
 
-    statusMessage.value = `识别到 ${lines.length} 条句子，开始去重...`;
+    const tags = tagsInput.value.trim() ? tagsInput.value.split(/[,，\s]+/).filter(t => t) : [];
 
-    const { data: existing } = await supabase.from('sentences').select('spanish_text').eq('user_id', store.user.id);
-    const existingSet = new Set((existing || []).map(s => s.spanish_text));
-    const toAdd = lines.map(line => ({ spanish_text: line.trim() })).filter(s => !existingSet.has(s.spanish_text));
+    const payload = {
+      sentences: lines,
+      tags: tags
+    };
 
-    const duplicateCount = lines.length - toAdd.length;
-    if (toAdd.length === 0) {
-      throw new Error(`没有新的句子可添加。${duplicateCount > 0 ? `忽略了 ${duplicateCount} 个重复项。` : ''}`);
-    }
-
-    statusMessage.value = `去重完毕，${toAdd.length} 条新句子正在获取翻译...`;
-
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) throw new Error("用户未登录或会话已过期。");
-
-    const payload = { sentences: toAdd, getTranslation: true };
-    const functionUrl = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/explain-sentence`;
-    const headers = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` };
-
-    const response = await fetch(functionUrl, {
-        method: 'POST',
-        headers: headers,
-        body: JSON.stringify(payload)
+    // 2. 发起单一、轻量的请求到新的入口函数
+    const { error } = await supabase.functions.invoke('add-sentences-minimal', {
+      body: payload
     });
-    if (!response.ok) {
-        const errorBody = await response.text();
-        throw new Error(`AI 翻译服务出错 (${response.status}): ${errorBody}`);
+
+    if (error) {
+      // 如果云函数返回错误，则抛出以便被 catch 块捕获
+      throw new Error(error.message);
     }
 
-    const { translatedSentences } = await response.json();
-    if (!translatedSentences) throw new Error("AI服务返回的数据格式不正确。");
+    // 3. 立即获得成功反馈
+    statusMessage.value = `成功提交 ${lines.length} 条句子！后台正在处理翻译、解释和词库...`;
 
-    statusMessage.value = '翻译成功，正在存入数据库...';
-
-    const finalTags = tagsInput.value.trim() ? tagsInput.value.split(/[,，\s]+/).filter(t => t) : [];
-    const sentencesToInsert = translatedSentences.map(s => ({
-      ...s,
-      user_id: store.user.id,
-      tags: finalTags.length > 0 ? finalTags : null
-    }));
-
-    const { error: insertError } = await supabase.from('sentences').insert(sentencesToInsert);
-    if (insertError) throw insertError;
-
-    statusMessage.value = '正在更新个人词库...';
-    // await generateAndUpdateHighFrequencyWords(store.user.id);
-    console.log("（占位）高频词更新逻辑需要在此处被调用。");
-
-    statusMessage.value = `成功添加 ${sentencesToInsert.length} 条新句子！`;
-    if (duplicateCount > 0) {
-        statusMessage.value += ` 忽略了 ${duplicateCount} 个重复项。`;
-    }
-
+    // 短暂延迟后关闭窗口，并通知父组件刷新数据
     setTimeout(() => {
         emit('sentences-added');
         emit('close');
     }, 1500);
 
   } catch (error) {
-    console.error('批量添加失败:', error);
-    errorMessage.value = error.message;
+    console.error('提交失败:', error);
+    errorMessage.value = `提交失败: ${error.message}`;
+    // 发生错误后，允许用户重新提交
     isProcessing.value = false;
   }
 }
@@ -110,7 +81,7 @@ async function handleSubmit() {
   <div v-if="show" class="modal-overlay" @click.self="!isProcessing && emit('close')">
     <div class="modal-content">
       <div class="modal-header">
-        <h3>添加新句子</h3>
+        <h3>批量添加新句子</h3>
         <button @click="emit('close')" class="close-btn" :disabled="isProcessing">&times;</button>
       </div>
       <div class="modal-body">
@@ -139,7 +110,7 @@ async function handleSubmit() {
 </template>
 
 <style scoped>
-/* 样式部分保持不变 */
+/* 样式部分无需改动，保持原样即可 */
 .modal-overlay {
   position: fixed; top: 0; left: 0; width: 100%; height: 100%;
   background-color: rgba(0, 0, 0, 0.6);
