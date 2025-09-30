@@ -1,122 +1,123 @@
-import { serve } from 'https://deno.land/std@0.168.0/http/server.ts'
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.44.0'
-import { GoogleGenerativeAI } from 'https://esm.sh/@google/generative-ai@0.12.0'
+// supabase/functions/generateAndUpdateHighFrequencyWords/index.ts
 
-// --- 环境变量 (与您的配置保持一致) ---
-const SUPABASE_URL = Deno.env.get('SUPABASE_URL')!
-const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!
-const GEMINI_API_KEY = Deno.env.get('GEMINI_API_KEY')!
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2';
+import { serve } from 'https://deno.land/std@0.168.0/http/server.ts';
 
-// --- AI 模型初始化 (用于单词翻译) ---
-const genAI = new GoogleGenerativeAI(GEMINI_API_KEY)
-const model = genAI.getGenerativeModel({ model: "gemini-2.5-pro" })
-
-// --- CORS 响应头 ---
+// CORS headers for preflight requests
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
-}
+};
 
-// --- 文本处理工具 (源自您的 textUtils.js 文件) ---
-const stopWords = new Set(['a', 'al', 'ante', 'bajo', 'con', 'contra', 'de', 'del', 'desde', 'durante', 'en', 'entre', 'hacia', 'hasta', 'mediante', 'para', 'por', 'según', 'sin', 'so', 'sobre', 'tras', 'el', 'la', 'los', 'las', 'un', 'una', 'unos', 'unas', 'y', 'o', 'pero', 'mas', 'es', 'son', 'está', 'están', 'fue', 'fueron', 'ser', 'estar', 'haber', 'hay', 'ha', 'no', 'mi', 'tu', 'su', 'mí', 'te', 'se', 'me', 'nos', 'os', 'lo', 'los', 'la', 'las', 'le', 'les', 'que', 'quien', 'cuyo', 'donde', 'como', 'cuando']); //
-const punctuationRegex = /[.,;!?()"\-—:¿¡]/g; //
-
-/**
- * 用于生成“单词列表”，会过滤掉标点和常见停用词
- * @param {string} sentence 输入的句子
- * @returns {string[]} 返回核心词汇数组
- */
-function getCoreWordsFromSentence(sentence: string): string[] { //
-  if (!sentence) return []; //
-  return sentence.toLowerCase() //
-                 .replace(punctuationRegex, '') //
-                 .split(/\s+/) //
-                 .filter(word => word.length > 1 && !stopWords.has(word)); //
-}
+// --- 【优化 1: 优化并缩减停用词列表】 ---
+// 只排除冠词、最常见的介词和连词，保留对学习者有用的高频词。
+const spanishStopWords = new Set([
+  // Articles (冠词)
+  'el', 'la', 'los', 'las', 'un', 'una', 'unos', 'unas',
+  // Prepositions (常用介词)
+  'a', 'ante', 'con', 'contra', 'de', 'desde', 'en', 'entre', 'hacia', 'hasta', 'para', 'por', 'sin', 'sobre',
+  // Conjunctions (常用连词)
+  'y', 'e', 'o', 'u', 'mas', 'pero', 'aunque',
+  // Contractions (缩合词)
+  'al', 'del'
+]);
 
 
 serve(async (req) => {
   if (req.method === 'OPTIONS') {
-    return new Response('ok', { headers: corsHeaders })
+    return new Response('ok', { headers: corsHeaders });
   }
 
   try {
-    // --- 1. 解析来自数据库触发器的 Webhook 负载 ---
-    const { record } = await req.json()
-    if (!record || !record.user_id || !record.spanish_text) {
-      throw new Error("Invalid webhook payload. 'record' with 'user_id' and 'spanish_text' is required.")
-    }
-    const { user_id: userId, spanish_text: spanishText } = record
-
-    // --- 2. 提取核心单词 ---
-    const wordsToAdd = Array.from(new Set(getCoreWordsFromSentence(spanishText)))
-    if (wordsToAdd.length === 0) {
-      return new Response(JSON.stringify({ message: 'No new words to process.' }), {
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200
-      });
+    const supabaseAdmin = createClient(
+      Deno.env.get('SUPABASE_URL') ?? '',
+      Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? '',
+      { auth: { persistSession: false } }
+    );
+    const { userId } = await req.json();
+    if (!userId) {
+      throw new Error("User ID is required.");
     }
 
-    const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
+    const { data: sentences, error: sentencesError } = await supabaseAdmin
+      .from('sentences')
+      .select('spanish_text')
+      .eq('user_id', userId);
 
-    // --- 3. 区分“全新词”和“已存在词” ---
-    const { data: existingWordsData, error: selectError } = await supabaseAdmin
+    if (sentencesError) throw sentencesError;
+
+    const wordFrequencyMap = new Map<string, number>();
+    for (const sentence of sentences) {
+      const words = sentence.spanish_text.toLowerCase().match(/\b[\w']+\b/g) || [];
+
+      const filteredWords = words.filter(word =>
+        word.length > 1 && !spanishStopWords.has(word)
+      );
+
+      for (const word of filteredWords) {
+        wordFrequencyMap.set(word, (wordFrequencyMap.get(word) || 0) + 1);
+      }
+    }
+
+    const { data: existingWords, error: existingWordsError } = await supabaseAdmin
       .from('high_frequency_words')
       .select('spanish_word')
-      .eq('user_id', userId)
-      .in('spanish_word', wordsToAdd)
+      .eq('user_id', userId);
+    if (existingWordsError) throw existingWordsError;
 
-    if (selectError) throw selectError
+    const existingWordSet = new Set(existingWords.map(w => w.spanish_word));
 
-    const existingWordsSet = new Set(existingWordsData.map(w => w.spanish_word))
-    const brandNewWords = wordsToAdd.filter(w => !existingWordsSet.has(w))
-    const existingWordsToIncrement = wordsToAdd.filter(w => existingWordsSet.has(w))
+    const newWordsToTranslate = [];
+    for (const word of wordFrequencyMap.keys()) {
+      if (!existingWordSet.has(word)) {
+        newWordsToTranslate.push(word);
+      }
+    }
 
-    // --- 4. 处理“全新词”（获取翻译并插入） ---
-    if (brandNewWords.length > 0) {
-      const prompt = `Translate the following Spanish words into Chinese. Return a valid JSON object where keys are the original Spanish words and values are their Chinese translations.
+    if (newWordsToTranslate.length > 0) {
+      const { data: translationData, error: invokeError } = await supabaseAdmin.functions.invoke('explain-sentence', {
+        body: { words: newWordsToTranslate, getTranslation: true },
+      });
+      if (invokeError) throw invokeError;
 
-Spanish words: ${JSON.stringify(brandNewWords)}
-
-JSON object:`
-      const result = await model.generateContent(prompt);
-      const responseText = result.response.text();
-      const jsonMatch = responseText.match(/{[\s\S]*}/);
-      if (!jsonMatch) throw new Error("AI word translation response did not contain a valid JSON object.");
-
-      const translations: Record<string, string> = JSON.parse(jsonMatch[0]);
-
-      const newWordsToInsert = brandNewWords.map(word => ({
+      const translations = translationData.translations;
+      const newWordsToInsert = Object.entries(translations).map(([spanish, chinese]) => ({
         user_id: userId,
-        spanish_word: word,
-        chinese_translation: translations[word] || 'N/A',
-        frequency: 1
+        spanish_word: spanish,
+        chinese_translation: chinese,
+        frequency: 0,
       }));
 
       const { error: insertError } = await supabaseAdmin
         .from('high_frequency_words')
         .insert(newWordsToInsert);
-
       if (insertError) throw insertError;
     }
 
-    // --- 5. 处理“已存在词”（调用RPC增加频率） ---
-    if (existingWordsToIncrement.length > 0) {
-      const { error: rpcError } = await supabaseAdmin.rpc('update_user_word_frequency', {
-        p_user_id: userId,
-        p_words_to_add: existingWordsToIncrement,
-        p_words_to_remove: [] // 在新增场景下，移除列表为空
+    const wordsToUpsert = [];
+    for (const [word, frequency] of wordFrequencyMap.entries()) {
+      wordsToUpsert.push({
+        user_id: userId,
+        spanish_word: word,
+        frequency: frequency,
       });
-      if (rpcError) throw rpcError;
     }
 
-    return new Response(JSON.stringify({ message: 'Vocabulary updated successfully.' }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 200
-    });
+    if (wordsToUpsert.length > 0) {
+        const { error: upsertError } = await supabaseAdmin
+          .from('high_frequency_words')
+          .upsert(wordsToUpsert, { onConflict: 'user_id, spanish_word' });
+        if (upsertError) throw upsertError;
+    }
 
+    return new Response(JSON.stringify({ message: "Word bank updated successfully." }), {
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      status: 200,
+    });
   } catch (error) {
-    console.error(error)
     return new Response(JSON.stringify({ error: error.message }), {
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' }, status: 500
-    })
+      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      status: 500,
+    });
   }
-})
+});
