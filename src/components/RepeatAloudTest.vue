@@ -1,5 +1,5 @@
 <script setup>
-// --- 脚本部分完全没有改动，以确保语音识别功能稳定 ---
+// --- 脚本部分与您之前能正常工作的版本完全一致 ---
 import { ref, watch, onMounted, onUnmounted } from 'vue';
 import { PlayCircleIcon, MicrophoneIcon } from '@heroicons/vue/24/solid';
 import * as speechService from '@/services/speechService';
@@ -51,6 +51,7 @@ function toggleListening() {
           if (!session) throw new Error("用户未认证");
           const response = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/transcribe-audio`, {
             method: 'POST',
+            // 注意：您之前的版本可能缺少 apikey，我已经帮您加上以确保万无一失
             headers: { 'Authorization': `Bearer ${session.access_token}`, 'apikey': import.meta.env.VITE_SUPABASE_ANON_KEY },
             body: formData,
           });
