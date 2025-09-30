@@ -20,7 +20,6 @@ import DictationTest from '@/components/DictationTest.vue'
 import ReadAloudTest from '@/components/ReadAloudTest.vue'
 import RepeatAloudTest from '@/components/RepeatAloudTest.vue'
 
-// 所有状态和函数定义保持不变
 const store = useStudyStore()
 const userStore = useUserStore()
 const router = useRouter()
@@ -41,6 +40,7 @@ const TEST_COMPONENTS = {
 }
 const testOrder = ref([])
 const currentTestIndex = ref(0)
+
 function shuffleArray(array) {
   for (let i = array.length - 1; i > 0; i--) {
     const j = Math.floor(Math.random() * (i + 1))
@@ -48,6 +48,7 @@ function shuffleArray(array) {
   }
   return array
 }
+
 const currentTestComponent = computed(() => {
   if (mode.value === 'quizzing' && testOrder.value.length > 0) {
     const testKey = testOrder.value[currentTestIndex.value]
@@ -55,11 +56,13 @@ const currentTestComponent = computed(() => {
   }
   return null
 })
+
 const currentSentenceWords = computed(() => {
   if (!store.currentSentence || store.allWords.length === 0) return []
   const wordsInSentence = new Set(getCoreWordsFromSentence(store.currentSentence.spanish_text))
   return store.allWords.filter((wordObj) => wordsInSentence.has(wordObj.spanish_word.toLowerCase()))
 })
+
 watch(
   () => store.currentSentence,
   (newSentence) => {
@@ -72,15 +75,18 @@ watch(
   },
   { immediate: true },
 )
+
 if (import.meta.env.PROD) {
   if (store.allSentencesInSession.length === 0 && !store.isLoading) {
     router.replace({ name: 'study' })
   }
 }
+
 function handleJumpTo(index) {
   store.jumpTo(index)
   isPlaylistVisible.value = false
 }
+
 function handlePlay(type) {
   if (!store.currentSentence) return
   if (activeReader.value === type) {
@@ -100,6 +106,7 @@ function handlePlay(type) {
     speechService.speak(text, options)
   }
 }
+
 async function showWordExplanation(word) {
   selectedWord.value = word
   isModalVisible.value = true
@@ -117,6 +124,7 @@ async function showWordExplanation(word) {
     store.cacheWordExplanation({ wordId: word.id, explanation: newExplanation })
   }
 }
+
 async function advance() {
   if (mode.value === 'studying') {
     mode.value = 'quizzing'
@@ -129,6 +137,7 @@ async function advance() {
       if (store.progress.current < store.progress.total) {
         store.goToNext()
       } else {
+        // 确保使用正确的函数名
         await userStore.updateUserProfile({
           current_session_ids: null,
           current_session_progress: null,
@@ -139,6 +148,7 @@ async function advance() {
     }
   }
 }
+
 function goBack() {
   if (mode.value === 'quizzing') {
     if (currentTestIndex.value > 0) {
@@ -152,11 +162,13 @@ function goBack() {
     }
   }
 }
+
 function handleTestAnswered(result) {
   const newResults = [...testResults.value]
   newResults[currentTestIndex.value] = result
   testResults.value = newResults
 }
+
 function replayTestAudio() {
   if (mode.value !== 'quizzing' || !store.currentSentence) return
   const options = {
@@ -175,6 +187,7 @@ function replayTestAudio() {
   }
 }
 
+// 为 handleContentClick 函数加上 try/catch 保护，防止移动端白屏
 function handleContentClick(event) {
   if (event.target && event.target.matches('.clickable-word')) {
     const word = event.target.dataset.word;
