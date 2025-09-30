@@ -205,21 +205,18 @@ onUnmounted(() => {
 <template>
   <div class="test-container speaking-test">
     <p class="instruction">请听并复述你听到的句子：</p>
-    <div class="controls">
-        <button @click="handlePlay" class="play-btn" :class="{ 'is-playing': activeReader === 'play' }">
-            <PlayCircleIcon />
-            <span>重听</span>
-        </button>
-        <button
-          @click="toggleListening"
-          class="mic-btn"
-          :class="{ 'is-listening': isListening, 'is-processing': isProcessing }"
-          :disabled="isProcessing"
-        >
-          <MicrophoneIcon v-if="!isProcessing" />
-          <div v-else class="spinner"></div>
-        </button>
-    </div>
+    <div class="mic-button-container">
+    <button
+      @click="toggleListening"
+      class="mic-btn"
+      :class="{ 'is-listening': isListening, 'is-processing': isProcessing }"
+      :disabled="isProcessing"
+    >
+      <MicrophoneIcon v-if="!isProcessing" />
+      <div v-else class="spinner"></div>
+    </button>
+    <div v-if="isListening" class="listening-indicator"></div>
+</div>
      <p v-if="isProcessing" class="processing-text">正在识别中...</p>
     <p v-if="error" class="error-text">{{ error }}</p>
     <div v-if="diffResult.length > 0" class="feedback-area">
@@ -251,17 +248,16 @@ onUnmounted(() => {
 /* 样式部分无需修改 */
 .test-container { display: flex; flex-direction: column; gap: 15px; padding: 10px; background-color: #f0f2f5; border-radius: 12px;}
 .instruction { text-align: center; color: #555; font-size: 16px; margin: 0; }
-.controls { display: flex; justify-content: center; align-items: center; gap: 20px; margin: 10px 0; }
-.play-btn { display: flex; align-items: center; gap: 5px; background: none; border: 1px solid #ccc; border-radius: 8px; padding: 8px 12px; cursor: pointer; font-size: 14px; }
-.play-btn.is-playing { color: #4A90E2; }
-.play-btn svg { width: 20px; height: 20px; }
 .mic-btn {
-  width: 50px; height: 50px; border-radius: 50%; border: none;
+  width: 60px; height: 60px; /* 从 50px 增大到 60px */
+  border-radius: 50%; border: none;
   background-color: #4A90E2; color: white;
   display: flex; justify-content: center; align-items: center;
   cursor: pointer; transition: background-color 0.3s;
 }
-.mic-btn svg { width: 24px; height: 24px; }
+.mic-btn svg {
+    width: 30px; height: 30px;
+}
 .mic-btn.is-listening { background-color: #dc3545; }
 .mic-btn.is-processing { background-color: #6c757d; cursor: not-allowed; }
 .spinner {
