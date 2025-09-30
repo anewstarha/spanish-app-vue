@@ -71,8 +71,9 @@ export const useStudyStore = defineStore('study', () => {
       allSentencesInSession.value = ids.map(id => sentenceMap.get(id)).filter(Boolean)
       allWords.value = wordsResponse.data
 
+      // --- 【核心修改 1】 ---
       // 会话开始时，保存会话列表到数据库
-      userStore.updateSessionProgress({
+      userStore.updateUserProfile({
           current_session_ids: ids,
           current_session_progress: 0
       });
@@ -84,22 +85,18 @@ export const useStudyStore = defineStore('study', () => {
     }
   }
 
-  // 用于恢复会话的函数
+  // 用于恢复会话的函数 (保持不变)
   async function resumeSession(ids, progress) {
-    // 复用加载逻辑，但不保存新会话
     sentenceIds.value = ids
     currentSentenceIndex.value = 0
     isLoading.value = true
     allSentencesInSession.value = []
     allWords.value = []
-
     const userStore = useUserStore();
     if (!userStore.user) {
       isLoading.value = false
       return
     }
-
-    // 这里是几乎与 startSession 相同的加载逻辑
     try {
       const [sentencesResponse, wordsResponse] = await Promise.all([
         supabase.from('sentences').select('*').in('id', ids),
@@ -118,10 +115,7 @@ export const useStudyStore = defineStore('study', () => {
       const sentenceMap = new Map(sentencesWithProgress.map(s => [s.id, s]))
       allSentencesInSession.value = ids.map(id => sentenceMap.get(id)).filter(Boolean)
       allWords.value = wordsResponse.data
-
-      // 设置正确的进度
       currentSentenceIndex.value = progress;
-
     } catch (error) {
       console.error('恢复学习会话失败:', error)
     } finally {
@@ -156,7 +150,8 @@ export const useStudyStore = defineStore('study', () => {
 
   function saveProgress() {
     const userStore = useUserStore();
-    userStore.updateSessionProgress({
+    // --- 【核心修改 2】 ---
+    userStore.updateUserProfile({
         current_session_progress: currentSentenceIndex.value
     });
   }

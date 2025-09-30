@@ -20,7 +20,7 @@ import DictationTest from '@/components/DictationTest.vue'
 import ReadAloudTest from '@/components/ReadAloudTest.vue'
 import RepeatAloudTest from '@/components/RepeatAloudTest.vue'
 
-// 所有状态和函数定义保持不变，除了 handleContentClick
+// 所有状态和函数定义保持不变
 const store = useStudyStore()
 const userStore = useUserStore()
 const router = useRouter()
@@ -175,15 +175,11 @@ function replayTestAudio() {
   }
 }
 
-// --- 【核心修改】 ---
-// 为 handleContentClick 函数加上 try/catch 保护
 function handleContentClick(event) {
   if (event.target && event.target.matches('.clickable-word')) {
     const word = event.target.dataset.word;
     if (word) {
       try {
-        // 在调用异步函数时，虽然我们不等待它完成（fire and forget），
-        // 但最好还是捕获它可能立即抛出的同步错误，或链式地捕获 Promise 拒绝。
         speechService.speak(word).catch(err => {
           console.error(`播放单词 "${word}" 失败:`, err);
         });
@@ -466,7 +462,7 @@ function handleContentClick(event) {
 </template>
 
 <style scoped>
-/* 省略大部分未改动的CSS，只列出新增或修改的 */
+/* 样式保持不变 */
 .session-view-container {
   display: flex;
   flex-direction: column;
@@ -609,8 +605,6 @@ function handleContentClick(event) {
   width: 18px;
   height: 18px;
 }
-
-/* 新增：测试进度标题 */
 .quiz-progress-header {
   text-align: center;
   color: #8a94a6;
@@ -743,5 +737,3 @@ function handleContentClick(event) {
   }
 }
 </style>
-```eof 请用这份更新后的 `StudySessionView.vue` 代码替换您的旧文件。这个版本已经正确地移除了
-`shallowRef`，应该可以解决您遇到的报错，让随机化的五种测试题正常显示出来。
