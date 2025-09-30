@@ -261,8 +261,8 @@ onUnmounted(() => {
 .mic-btn.is-listening { background-color: #dc3545; }
 .mic-btn.is-processing { background-color: #6c757d; cursor: not-allowed; }
 .spinner {
-  width: 24px; height: 24px;
-  border: 3px solid rgba(255, 255, 255, 0.3);
+  width: 30px; height: 30px; /* 从 24px 增大到 30px */
+  border: 4px solid rgba(255, 255, 255, 0.3); /* 边框可以适当加粗 */
   border-top-color: #fff;
   border-radius: 50%;
   animation: spin 1s linear infinite;
@@ -280,4 +280,23 @@ onUnmounted(() => {
 .feedback { font-weight: bold; text-align: center; margin-top: 10px; }
 .feedback.correct { color: #28a745; }
 .feedback.incorrect { color: #dc3545; line-height: 1.5; }
+.mic-button-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    margin: 10px 0;
+    position: relative; /* 为脉冲圈定位 */
+}
+
+.listening-indicator {
+  position: absolute; width: 60px; height: 60px;
+  border: 2px solid #dc3545; border-radius: 50%;
+  animation: pulse 1.5s infinite;
+  pointer-events: none; /* 确保它不会干扰按钮点击 */
+}
+
+@keyframes pulse {
+  0% { transform: scale(1); opacity: 0.5; }
+  100% { transform: scale(1.5); opacity: 0; }
+}
 </style>
