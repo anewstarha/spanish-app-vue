@@ -324,13 +324,31 @@ function handleContentClick(event) {
 
                   <div class="ai-section" v-if="store.currentSentence.ai_notes.extended_sentences">
                     <h4 class="ai-section-title">举一反三</h4>
+
+                    <div
+                      v-if="typeof store.currentSentence.ai_notes.extended_sentences === 'object'"
+                    >
+                      <p
+                        class="example-spanish"
+                        v-html="
+                          linkifySpanishWords(
+                            store.currentSentence.ai_notes.extended_sentences.spanish,
+                          )
+                        "
+                      ></p>
+                      <p class="example-chinese">
+                        {{ store.currentSentence.ai_notes.extended_sentences.chinese }}
+                      </p>
+                    </div>
                     <p
+                      v-else
                       v-html="
                         linkifySpanishWords(store.currentSentence.ai_notes.extended_sentences)
                       "
                     ></p>
                   </div>
                 </div>
+                <p v-else-if="store.currentSentence.ai_notes">正在获取AI解释...</p>
                 <p v-else>No hay explicación de IA para esta frase.</p>
               </div>
             </details>
