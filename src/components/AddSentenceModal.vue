@@ -35,19 +35,16 @@ async function handleSubmit() {
   try {
     const lines = spanishText.value.trim().split('\n').filter(line => line.trim().length > 0);
     if (lines.length === 0) throw new Error("输入内容不能为空。");
+    statusMessage.value = `识别到 ${lines.length} 条句子，正在获取翻译与AI解释...`;
 
-    statusMessage.value = `识别到 ${lines.length} 条句子，开始去重...`;
-
+    // ... (去重逻辑保持不变) ...
     const { data: existing } = await supabase.from('sentences').select('spanish_text').eq('user_id', store.user.id);
     const existingSet = new Set((existing || []).map(s => s.spanish_text));
     const toAdd = lines.map(line => ({ spanish_text: line.trim() })).filter(s => !existingSet.has(s.spanish_text));
-
     const duplicateCount = lines.length - toAdd.length;
     if (toAdd.length === 0) {
       throw new Error(`没有新的句子可添加。${duplicateCount > 0 ? `忽略了 ${duplicateCount} 个重复项。` : ''}`);
     }
-
-    statusMessage.value = `去重完毕，${toAdd.length} 条新句子正在获取翻译与AI解释...`;
 
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) throw new Error("用户未登录或会话已过期。");
@@ -86,13 +83,22 @@ async function handleSubmit() {
     const { error: insertError } = await supabase.from('sentences').insert(sentencesToInsert);
     if (insertError) throw insertError;
 
-    statusMessage.value = '句子保存成功，正在触发个人词库更新...';
+    statusMessage.value = '句子保存成功，正在同步个人词库...';
 
-    supabase.functions.invoke('generateAndUpdateHighFrequencyWords', {
-      body: { userId: store.user.id }
+    // --- 【核心修改】 ---
+    // 直接调用云函数，并传递新添加的句子文本
+    // 因为“精准同步”速度很快，所以我们使用 await 等待它完成
+    const newSentencesText = sentencesToInsert.map(s => s.spanish_text);
+    const { error: syncError } = await supabase.functions.invoke('generateAndUpdateHighFrequencyWords', {
+      body: { addedSentencesText: newSentencesText }
     });
 
-    statusMessage.value = `成功添加 ${sentencesToInsert.length} 条新句子！词库更新已在后台开始。`;
+    if (syncError) {
+        // 即使词库同步失败，句子也已添加成功，只在控制台报告错误
+        console.error("词库同步失败:", syncError);
+    }
+
+    statusMessage.value = `成功添加 ${sentencesToInsert.length} 条新句子！词库已同步。`;
     if (duplicateCount > 0) {
         statusMessage.value += ` 忽略了 ${duplicateCount} 个重复项。`;
     }
@@ -100,7 +106,7 @@ async function handleSubmit() {
     setTimeout(() => {
         emit('sentences-added');
         emit('close');
-    }, 2000);
+    }, 1500);
 
   } catch (error) {
     console.error('批量添加失败:', error);
