@@ -6,22 +6,18 @@ import { splitSentenceForTts } from '@/utils/textUtils';
 const audio = new Audio();
 let isAudioUnlocked = false;
 
-// 加固 _unlockAudio 函数
+// _unlockAudio 函数保持不变
 async function _unlockAudio() {
   if (isAudioUnlocked) return;
-
-  // 创建一个一次性的静音音频对象来解锁
   const silentAudio = new Audio("data:audio/mp3;base64,SUQzBAAAAAABEVRYWFgAAAAtAAADY29tbWVudABCaWdTb3VuZEJhbmsuY29tIC8gTGFTb25vdGhlcXVlLm9yZwBURU5DAAAAHQAAA1N3aXRjaCBQbHVzIMKpIE5DSCBTb2Z0d2FyZQBUSVQyAAAABgAAAzIyMzUAVFNTRQAAAAgAAANMYXZmNTcuODMuMTAwAAAAAAAAAAAAAAD/80DEAAAAA0gAAAAATEFNRTMuMTAwVVVVVVVVVVVVVUxBTUUzLjEwMFVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVf/zQsRbAAADSAAAAABVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVf/zQMSkAAADSAAAAABVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVVV");
   silentAudio.volume = 0;
-
   try {
     await silentAudio.play();
     isAudioUnlocked = true;
     console.log("Audio context unlocked successfully.");
   } catch (error) {
-    // 即便解锁失败，我们也标记为 true，并给出警告，避免重复尝试
     isAudioUnlocked = true;
-    console.warn("Audio context unlock might have failed, but proceeding anyway. This is often not a critical error.", error);
+    console.warn("Audio context unlock might have failed, but proceeding anyway.", error);
   }
 }
 
@@ -32,10 +28,10 @@ function cancel() {
   }
 }
 
+// --- 【核心修改在这里】 ---
 async function _executeSpeak(text, isSlow = false) {
   if (!text) return;
 
-  // TTS_URL 和 getSession 逻辑保持不变
   const TTS_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/tts`;
   const { data: { session } } = await supabase.auth.getSession();
   if (!session) throw new Error("用户未认证");
@@ -58,14 +54,27 @@ async function _executeSpeak(text, isSlow = false) {
 
   audio.src = `data:audio/mp3;base64,${data.audioContent}`;
 
-  // 使用 Promise 来确保播放完成
+  // 返回一个新的 Promise，它只在音频播放结束或出错时才会 resolve/reject
   return new Promise((resolve, reject) => {
-    audio.play().then(resolve).catch(reject);
-    audio.onerror = reject;
+    // 移除旧的监听器，防止重复触发
+    audio.onended = null;
+    audio.onerror = null;
+
+    // 当音频播放完成时，resolve Promise
+    audio.onended = () => resolve();
+    // 当发生错误时，reject Promise
+    audio.onerror = (e) => reject(e);
+
+    // 尝试播放
+    audio.play().catch(err => {
+        // 如果 play() 方法本身就失败了（例如，在某些严格的浏览器策略下）
+        console.error("Audio play() failed:", err);
+        reject(err);
+    });
   });
 }
 
-// speak 函数保持不变，它已经有 try/finally 结构
+// speak 和 speakWordByWord 函数保持不变，因为 _executeSpeak 的修正已经解决了根本问题
 async function speak(text, options = {}) {
   await _unlockAudio();
   const { isSlow = false, onStart, onEnd } = options;
@@ -75,14 +84,12 @@ async function speak(text, options = {}) {
     await _executeSpeak(text, isSlow);
   } catch (error) {
     console.error(`朗读 "${text}" 时发生错误:`, error);
-    // 重新抛出错误，让调用方可以捕获
     throw error;
   } finally {
     if (onEnd) onEnd();
   }
 }
 
-// speakWordByWord 保持不变
 async function speakWordByWord(text, options = {}) {
   await _unlockAudio();
   const { onStart, onEnd } = options;
@@ -92,10 +99,8 @@ async function speakWordByWord(text, options = {}) {
   const words = splitSentenceForTts(text);
   try {
     for (const word of words) {
-      // 检查是否在循环中被取消
       if (audio.paused && audio.src === '') break;
       await _executeSpeak(word, false);
-      // 在单词之间添加一个小的停顿
       if (audio.paused && audio.src === '') break;
       await new Promise(resolve => setTimeout(resolve, 150));
     }
@@ -106,7 +111,7 @@ async function speakWordByWord(text, options = {}) {
   }
 }
 
-// getWordExplanation 保持不变
+// getWordExplanation 函数保持不变
 async function getWordExplanation(wordObject) {
     if (!wordObject || !wordObject.spanish_word) return null;
     try {
