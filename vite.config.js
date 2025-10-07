@@ -9,10 +9,8 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 // https://vitejs.dev/config/
 export default defineConfig({
-  // Use a relative base so built asset links are relative paths.
-  // This prevents leading '/' absolute paths in the generated index.html which
-  // can cause resources to 404 when served from the app bundle.
-  base: './',
+  // Use absolute base path for proper SPA routing in production
+  base: '/',
   plugins: [
     vue(),
     // basicSsl() // 3. 移除或注释掉 SSL 插件启用
