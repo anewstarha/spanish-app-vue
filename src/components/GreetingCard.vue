@@ -15,10 +15,10 @@ defineProps({
 <template>
   <div class="greeting-card">
     <div class="greeting-text">
-      <h2>¡Hola, {{ userStore.profile?.nickname || 'amigo' }}!</h2>
-      <p>¿Listo para aprender algo nuevo hoy?</p>
+      <h2>你好，{{ userStore.profile?.nickname || '朋友' }}！</h2>
+      <p>准备好今天学习新内容了吗？</p>
     </div>
-    <div v-if="streak > 0" class="streak-counter" title="Días de racha de estudio">
+    <div v-if="streak > 0" class="streak-counter" title="连续学习天数">
       <span class="streak-icon">🔥</span>
       <span class="streak-number">{{ streak }}</span>
       <span class="streak-label">Días</span>

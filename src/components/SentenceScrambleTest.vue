@@ -49,7 +49,7 @@ watch(() => props.sentence, setupTest, { immediate: true });
 
 <template>
   <div class="test-container">
-    <p class="instruction">Haz clic en las palabras en el orden correcto para reconstruir la frase.</p>
+    <p class="instruction">按正确顺序点击单词重组句子。</p>
     <div class="answer-area">
       <button v-for="word in userAnswer" :key="word.id" @click="unselectWord(word)" class="word-chip answer">
         {{ word.word }}
@@ -62,10 +62,10 @@ watch(() => props.sentence, setupTest, { immediate: true });
       </button>
     </div>
     <div class="feedback-area">
-      <button v-if="result === null" @click="checkAnswer" class="check-btn">Comprobar</button>
-      <div v-if="result === 'correct'" class="feedback correct">✓ ¡Correcto!</div>
+      <button v-if="result === null" @click="checkAnswer" class="check-btn">检查答案</button>
+      <div v-if="result === 'correct'" class="feedback correct">✓ 正确！</div>
       <div v-if="result === 'incorrect'" class="feedback incorrect">
-        ✗ ¡Incorrecto! El orden correcto es:<br><strong>{{ originalWords.join(' ') }}</strong>
+        ✗ 错误！正确顺序是:<br><strong>{{ originalWords.join(' ') }}</strong>
       </div>
     </div>
   </div>

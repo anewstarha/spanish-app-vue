@@ -50,7 +50,7 @@ watch(() => props.sentence, setupTest, { immediate: true });
 
 <template>
   <div class="test-container" v-if="keyword">
-    <p class="instruction">Selecciona el significado de la palabra que escuchaste.</p>
+    <p class="instruction">选择您听到的单词的意思。</p>
     <div class="mcq-options">
       <button v-for="opt in options" :key="opt" @click="checkAnswer(opt)"
               :disabled="!!result"

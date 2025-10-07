@@ -29,7 +29,7 @@ async function handleRegister() {
         <button type="submit">Registrarse</button>
       </form>
       <p class="auth-switch">
-        ¿Ya tienes cuenta? <RouterLink to="/login">Inicia sesión</RouterLink>
+        已有账号？<RouterLink to="/login">立即登录</RouterLink>
       </p>
     </div>
   </AuthLayout>

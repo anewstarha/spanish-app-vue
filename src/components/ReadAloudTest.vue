@@ -219,7 +219,7 @@ onUnmounted(() => {
           {{ part.value }}
         </span>
       </div>
-       <div v-if="result === 'correct'" class="feedback correct">✓ ¡发音很棒!</div>
+       <div v-if="result === 'correct'" class="feedback correct">✓ 发音很棒！</div>
        <div v-if="result === 'incorrect'" class="feedback incorrect">✗ 发音有待提高，请再试一次。</div>
     </div>
   </div>

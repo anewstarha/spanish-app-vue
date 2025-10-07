@@ -133,7 +133,7 @@ async function advance() {
           current_session_ids: null,
           current_session_progress: null,
         })
-        alert('¡Felicidades! Has completado todo el estudio y las pruebas de esta ronda.')
+        alert('恭喜！您已完成本轮所有学习和测试。')
         router.push({ name: 'study' })
       }
     }
@@ -233,7 +233,7 @@ function handleContentClick(event) {
     </header>
 
     <main class="session-main">
-      <div v-if="store.isLoading" class="loading-indicator">Cargando sesión...</div>
+      <div v-if="store.isLoading" class="loading-indicator">正在加载会话...</div>
       <template v-else-if="store.currentSentence">
         <div v-if="mode === 'studying'">
           <div class="study-card">
@@ -244,7 +244,7 @@ function handleContentClick(event) {
           </div>
           <div class="collapsible-area">
             <details class="collapsible-item">
-              <summary>Lista de palabras ({{ currentSentenceWords.length }})</summary>
+              <summary>词汇列表 ({{ currentSentenceWords.length }})</summary>
               <div class="collapsible-content">
                 <ul v-if="currentSentenceWords.length > 0" class="words-list">
                   <li
@@ -267,7 +267,7 @@ function handleContentClick(event) {
                     </div>
                   </li>
                 </ul>
-                <p v-else class="empty-list">No hay palabras de alta frecuencia en esta frase.</p>
+                <p v-else class="empty-list">此句子中没有高频词汇。</p>
               </div>
             </details>
             <details class="collapsible-item">
@@ -326,7 +326,7 @@ function handleContentClick(event) {
                   </div>
                 </div>
                 <p v-else-if="store.currentSentence.ai_notes">正在获取AI解释...</p>
-                <p v-else>No hay explicación de IA para esta frase.</p>
+                <p v-else>此句子暂无AI解释。</p>
               </div>
             </details>
           </div>
@@ -423,7 +423,7 @@ function handleContentClick(event) {
 
     <div v-if="isPlaylistVisible" class="playlist-overlay" @click="isPlaylistVisible = false">
       <div class="playlist-modal" @click.stop>
-        <h3>Lista de frases ({{ store.progress.total }})</h3>
+        <h3>句子列表 ({{ store.progress.total }})</h3>
         <ul class="playlist-content">
           <li
             v-for="(sentence, index) in store.allSentencesInSession"

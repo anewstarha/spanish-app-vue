@@ -27,7 +27,7 @@ async function handleLogin() {
         <button type="submit">Iniciar sesión</button>
       </form>
       <p class="auth-switch">
-        ¿No tienes cuenta? <RouterLink to="/register">Regístrate ahora</RouterLink>
+        没有账号？<RouterLink to="/register">立即注册</RouterLink>
       </p>
     </div>
   </AuthLayout>

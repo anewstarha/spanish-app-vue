@@ -42,13 +42,12 @@ onMounted(async () => {
   await watchUntil(() => userStore.profile !== null);
   const unfinishedSession = userStore.profile?.current_session_ids;
   if (unfinishedSession && unfinishedSession.length > 0) {
-    if (confirm("Se encontró una sesión de estudio no finalizada. ¿Deseas continuar?")) {
-      const progress = userStore.profile.current_session_progress || 0;
-      await studyStore.resumeSession(unfinishedSession, progress);
-      router.push({ name: 'studySession' });
-      return;
-    } else {
-      await userStore.updateUserProfile({ current_session_ids: null, current_session_progress: null });
+    if (studyStore.currentSessionIds.length > 0) {
+      if (confirm("发现未完成的学习会话，是否继续？")) {
+        await startStudySession();
+      } else {
+        await userStore.updateUserProfile({ current_session_ids: null, current_session_progress: null });
+      }
     }
   }
   try {
@@ -152,7 +151,7 @@ function toggleSentenceSelection(sentenceId) {
 // --- MODIFIED ---
 async function startQuickStudy() {
     const count = Math.min(selectionCount.value, filteredSentences.value.length);
-    if (count === 0) { alert('No hay frases que coincidan con los filtros actuales.'); return; }
+    if (count === 0) { alert('没有符合当前筛选条件的句子。'); return; }
 
     // --- NEW ---
     // 保存当前筛选设置为用户的“上次学习设置”
@@ -176,7 +175,7 @@ async function startQuickStudy() {
 }
 
 async function startCustomStudy() {
-    if (selectedSentenceIds.value.size === 0) { alert('Por favor, selecciona al menos una frase.'); return; }
+    if (selectedSentenceIds.value.size === 0) { alert('请至少选择一个句子。'); return; }
     const idsToStudy = Array.from(selectedSentenceIds.value);
     await studyStore.startSession(idsToStudy);
     router.push({ name: 'studySession' });
@@ -185,15 +184,15 @@ async function startCustomStudy() {
 
 <template>
   <div class="study-view-page">
-    <div v-if="isLoading" class="loading-indicator">Cargando...</div>
+    <div v-if="isLoading" class="loading-indicator">加载中...</div>
 
     <div v-else-if="isSearchMode" class="search-view">
       <div class="search-bar-container">
         <div class="search-input-wrapper active">
           <MagnifyingGlassIcon />
-          <input type="text" v-model="searchQuery" id="custom-search-input" placeholder="Buscar por palabra clave..." class="search-input">
+          <input type="text" v-model="searchQuery" id="custom-search-input" placeholder="按关键词搜索..." class="search-input">
         </div>
-        <button @click="isSearchMode = false" class="cancel-btn">Cancelar</button>
+        <button @click="isSearchMode = false" class="cancel-btn">取消</button>
       </div>
       <div class="sentence-list">
         <div v-if="searchedSentences.length > 0">
@@ -205,11 +204,11 @@ async function startCustomStudy() {
             <p class="chinese-text">{{ sentence.chinese_translation }}</p>
           </div>
         </div>
-        <p v-else class="empty-list-message">No se encontraron frases.</p>
+        <p v-else class="empty-list-message">未找到句子。</p>
       </div>
       <div v-if="selectedSentenceIds.size > 0" class="floating-start-button">
         <button @click="startCustomStudy" class="btn btn-primary">
-          Comenzar a estudiar ({{ selectedSentenceIds.size }})
+          开始学习 ({{ selectedSentenceIds.size }})
         </button>
       </div>
     </div>
@@ -220,23 +219,23 @@ async function startCustomStudy() {
           <div class="filter-group">
             <label>Dominio</label>
             <div class="pill-switch large">
-              <button @click="filters.mastery = 'unmastered'" :class="{active: filters.mastery === 'unmastered'}">No</button>
-              <button @click="filters.mastery = 'mastered'" :class="{active: filters.mastery === 'mastered'}">Sí</button>
+              <button @click="filters.mastery = 'unmastered'" :class="{active: filters.mastery === 'unmastered'}">否</button>
+              <button @click="filters.mastery = 'mastered'" :class="{active: filters.mastery === 'mastered'}">是</button>
               <button @click="filters.mastery = 'all'" :class="{active: filters.mastery === 'all'}">Todos</button>
             </div>
           </div>
           <div class="filter-group">
-            <label>Estudio</label>
+            <label>学习状态</label>
             <div class="pill-switch large">
-              <button @click="filters.studied = 'unstudied'" :class="{active: filters.studied === 'unstudied'}">No</button>
-              <button @click="filters.studied = 'studied'" :class="{active: filters.studied === 'studied'}">Sí</button>
-              <button @click="filters.studied = 'all'" :class="{active: filters.studied === 'all'}">Todos</button>
+              <button @click="filters.studied = 'unstudied'" :class="{active: filters.studied === 'unstudied'}">否</button>
+              <button @click="filters.studied = 'studied'" :class="{active: filters.studied === 'studied'}">是</button>
+              <button @click="filters.studied = 'all'" :class="{active: filters.studied === 'all'}">全部</button>
             </div>
           </div>
         </div>
 
         <div class="tags-section">
-          <label class="section-title">Etiquetas</label>
+          <label class="section-title">标签</label>
           <div class="tag-list">
             <button v-for="tag in visibleTags" :key="tag.name" @click="toggleTag(tag.name)" class="tag large"
                     :class="{ 'active': (tag.name === 'Todos' && filters.tags.length === 0) || filters.tags.includes(tag.name) }">
@@ -248,17 +247,17 @@ async function startCustomStudy() {
 
         <div class="action-section">
           <div class="setting-row">
-            <label>Cantidad de frases</label>
+            <label>句子数量</label>
             <input type="number" v-model="selectionCount" min="1" :max="filteredSentences.length" class="count-input">
           </div>
           <div class="setting-row">
             <label>Selección Aleatoria</label>
             <label class="switch"><input type="checkbox" v-model="isRandomSelection"><span class="slider round"></span></label>
           </div>
-          <button @click="startQuickStudy" class="btn btn-primary">Comenzar a estudiar</button>
+          <button @click="startQuickStudy" class="btn btn-primary">开始学习</button>
           <div class="search-input-wrapper" @click="activateSearchMode">
             <MagnifyingGlassIcon />
-            <input type="text" placeholder="Buscar para estudio personalizado" readonly class="search-input">
+            <input type="text" placeholder="搜索自定义学习内容" readonly class="search-input">
           </div>
         </div>
       </div>

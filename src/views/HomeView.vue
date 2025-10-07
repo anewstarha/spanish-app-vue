@@ -53,7 +53,7 @@ async function quickStudy() {
         return true;
     });
     if (filtered.length === 0) {
-        alert("No hay frases que coincidan con los filtros actuales.");
+        alert("没有符合当前筛选条件的句子。");
         router.push({ name: 'study' });
         return;
     }
@@ -83,7 +83,7 @@ async function quickTest() {
         return true;
     });
     if (filtered.length === 0) {
-        alert("No hay frases disponibles para la prueba, por favor estudia primero.");
+        alert("没有可用于测验的句子，请先学习。");
         router.push({ name: 'quiz' });
         return;
     }
@@ -104,7 +104,7 @@ function manageContent() {
     <AppHeader />
     <GreetingCard :streak="homeStats?.streak" />
 
-    <div v-if="isLoadingStats" class="loading-placeholder">Cargando estadísticas...</div>
+    <div v-if="isLoadingStats" class="loading-placeholder">正在加载统计数据...</div>
     <HomeCharts v-else-if="homeStats" :progress="homeStats.progress" />
 
     <section class="quick-actions">

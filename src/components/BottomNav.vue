@@ -13,19 +13,19 @@ import {
   <nav class="bottom-nav">
     <RouterLink to="/" class="nav-item">
       <HomeIcon class="icon" />
-      <div class="label">Inicio</div>
+      <div class="label">首页</div>
     </RouterLink>
     <RouterLink to="/study" class="nav-item">
       <BookOpenIcon class="icon" />
-      <div class="label">Aprender</div>
+      <div class="label">学习</div>
     </RouterLink>
     <RouterLink to="/quiz" class="nav-item">
       <ChatBubbleLeftRightIcon class="icon" />
-      <div class="label">Practicar</div>
+      <div class="label">练习</div>
     </RouterLink>
     <RouterLink to="/manage" class="nav-item">
       <PencilSquareIcon class="icon" />
-      <div class="label">Mi Contenido</div>
+      <div class="label">管理</div>
     </RouterLink>
   </nav>
 </template>

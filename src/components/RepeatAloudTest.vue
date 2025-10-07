@@ -236,7 +236,7 @@ onUnmounted(() => {
           {{ part.value }}
         </span>
       </div>
-      <div v-if="result === 'correct'" class="feedback correct">✓ ¡非常棒!</div>
+      <div v-if="result === 'correct'" class="feedback correct">✓ 非常棒！</div>
       <div v-if="result === 'incorrect'" class="feedback incorrect">
           ✗ 有待提高，正确句子是: <strong>{{ sentence.spanish_text }}</strong>
       </div>

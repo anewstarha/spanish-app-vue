@@ -50,7 +50,7 @@ const legendItems = computed(() => [
 <template>
   <section class="stats-container">
     <div class="chart-card">
-      <h4 class="card-title">Resumen de Estudio</h4>
+      <h4 class="card-title">学习总结</h4>
       <div class="card-content">
         <div class="chart-wrapper">
           <Doughnut :data="chartData" :options="chartOptions" />

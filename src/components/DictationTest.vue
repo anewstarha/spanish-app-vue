@@ -50,7 +50,7 @@ watch(() => props.sentence, setupTest, { immediate: true });
 
 <template>
   <div class="test-container">
-    <p class="instruction">Escucha la frase y rellena la palabra que falta.</p>
+    <p class="instruction">听句子并填入缺失的单词。</p>
     <div class="dictation-sentence">
       <template v-for="(part, index) in sentenceParts" :key="index">
         <span v-if="part.type === 'text'">{{ part.value }}</span>
@@ -65,7 +65,7 @@ watch(() => props.sentence, setupTest, { immediate: true });
     </div>
      <div class="feedback-area">
       <button v-if="result === null" @click="checkAnswer" class="check-btn">Comprobar</button>
-      <div v-if="result === 'correct'" class="feedback correct">✓ ¡Correcto!</div>
+      <div v-if="result === 'correct'" class="feedback correct">✓ 正确！</div>
       <div v-if="result === 'incorrect'" class="feedback incorrect">
         ✗ Incorrecto, la respuesta correcta es: <strong>{{ blankWord }}</strong>
       </div>

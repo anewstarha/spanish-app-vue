@@ -57,7 +57,7 @@ onMounted(async () => {
 
   if (unfinishedQuiz && unfinishedQuiz.length > 0) {
     // 如果是自动恢复，或者用户确认继续，则恢复会话
-    if (shouldAutoResume || confirm("Se encontró un test no finalizado. ¿Deseas continuar?")) {
+    if (shouldAutoResume || confirm("发现未完成的测试，是否继续？")) {
         const progress = userStore.profile.current_quiz_progress || 0;
         quizQuestions.value = unfinishedQuiz;
         currentQuestionIndex.value = progress;
@@ -226,12 +226,12 @@ function replayTestAudio() {
     <div class="page-container" :class="{ 'is-expanded': areTagsExpanded }">
         <div v-if="pageState === 'filtering'" class="filter-wrapper">
             <AppHeader />
-            <div v-if="isLoading" class="loading-indicator">Cargando...</div>
+            <div v-if="isLoading" class="loading-indicator">正在加载...</div>
             <div v-else class="content-wrapper" ref="contentWrapperRef">
                 <div class="main-card">
                     <div class="filter-section">
                         <div class="filter-group">
-                            <label>Estudio</label>
+                            <label>学习状态</label>
                             <div class="pill-switch">
                                 <button @click="filters.studied = 'studied'" :class="{active: filters.studied === 'studied'}">Sí</button>
                                 <button @click="filters.studied = 'unstudied'" :class="{active: filters.studied === 'unstudied'}">No</button>
@@ -264,7 +264,7 @@ function replayTestAudio() {
                     </div>
                     <div class="action-section">
                         <button @click="startQuiz" class="btn btn-primary">
-                            Practicar ({{ filteredSentences.length * 5 }})
+                            开始练习 ({{ filteredSentences.length * 5 }})
                         </button>
                     </div>
                 </div>
@@ -300,10 +300,10 @@ function replayTestAudio() {
             </footer>
         </div>
         <div v-else-if="pageState === 'finished'" class="finished-container">
-            <h2>¡Felicidades!</h2>
+            <h2>恭喜！</h2>
             <p>Has completado {{ quizQuestions.length }} ejercicios.</p>
-            <button @click="resetQuiz" class="btn btn-primary">Practicar de nuevo</button>
-            <button @click="router.push('/')" class="secondary-button">Volver al inicio</button>
+            <button @click="resetQuiz" class="btn btn-primary">再次练习</button>
+            <button @click="router.push('/')" class="secondary-button">回到首页</button>
         </div>
     </div>
 </template>
