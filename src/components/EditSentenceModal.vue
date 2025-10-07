@@ -38,7 +38,7 @@ watch(() => props.show, (newValue) => {
 
 async function handleSave() {
   if (!editableSentence.value.spanish_text.trim() || isProcessing.value) {
-    alert('西班牙语原文不能为空。');
+    alert('原文不能为空。');
     return;
   }
 
@@ -128,7 +128,7 @@ async function handleSave() {
       </div>
       <div class="modal-body">
         <div class="form-group">
-          <label for="edit-spanish-text">西班牙语原文</label>
+          <label for="edit-spanish-text">原文</label>
           <textarea id="edit-spanish-text" v-model="editableSentence.spanish_text" rows="4" :disabled="isProcessing"></textarea>
         </div>
         <div class="form-group">

@@ -271,7 +271,7 @@ function handleContentClick(event) {
               </div>
             </details>
             <details class="collapsible-item">
-              <summary>Explicación de IA</summary>
+              <summary>AI 解释</summary>
               <div class="collapsible-content" @click="handleContentClick">
                 <div
                   v-if="
@@ -370,7 +370,7 @@ function handleContentClick(event) {
           :class="{ active: activeReader === 'normal' }"
         >
           <PlayCircleIcon class="footer-icon" />
-          <span class="footer-label">Leer</span>
+          <span class="footer-label">朗读</span>
         </div>
         <div
           class="footer-nav-item"
@@ -378,7 +378,7 @@ function handleContentClick(event) {
           :class="{ active: activeReader === 'word' }"
         >
           <ViewColumnsIcon class="footer-icon" />
-          <span class="footer-label">Palabras</span>
+          <span class="footer-label">词汇</span>
         </div>
         <div class="footer-nav-item" @click="mode = 'quizzing'">
           <svg
@@ -406,7 +406,7 @@ function handleContentClick(event) {
           :class="{ active: activeReader === 'replay' }"
         >
           <PlayCircleIcon class="footer-icon" />
-          <span class="footer-label">Repetir</span>
+          <span class="footer-label">重复</span>
         </div>
         <div
           class="footer-nav-item"
@@ -415,7 +415,7 @@ function handleContentClick(event) {
         >
           <ArrowRightCircleIcon class="footer-icon" />
           <span class="footer-label">{{
-            currentTestIndex < testOrder.length - 1 ? 'Siguiente' : 'Próxima Frase'
+            currentTestIndex < testOrder.length - 1 ? '下一个' : '下一句'
           }}</span>
         </div>
       </template>

@@ -68,9 +68,9 @@ const filteredSentences = computed(() => {
     if (filters.value.studied !== 'all' && (sentence.is_studied || false) !== (filters.value.studied === 'studied')) return false;
 
     const sentenceTags = sentence.tags || [];
-    if (filters.value.tags.length > 0 && !filters.value.tags.includes('Todos')) {
+    if (filters.value.tags.length > 0 && !filters.value.tags.includes('全部')) {
         let matchesTag = false;
-        if (filters.value.tags.includes('Sin etiqueta') && sentenceTags.length === 0) {
+        if (filters.value.tags.includes('无标签') && sentenceTags.length === 0) {
             matchesTag = true;
         }
         if (sentenceTags.some(tag => filters.value.tags.includes(tag))) {
@@ -104,8 +104,8 @@ const tagsWithCounts = computed(() => {
     else untaggedCount++;
   });
   const tagList = allTags.value.map(tag => ({ name: tag, count: counts[tag] || 0 }));
-  tagList.unshift({ name: 'Sin etiqueta', count: untaggedCount });
-  tagList.unshift({ name: 'Todos', count: preFiltered.length });
+  tagList.unshift({ name: '无标签', count: untaggedCount });
+  tagList.unshift({ name: '全部', count: preFiltered.length });
   return tagList;
 });
 
@@ -119,7 +119,7 @@ const showExpandButton = computed(() => {
 });
 
 function toggleTag(tag) {
-  if (tag === 'Todos') {
+  if (tag === '全部') {
     filters.value.tags = [];
     return;
   }
@@ -217,11 +217,11 @@ async function startCustomStudy() {
       <div class="main-card">
         <div class="filter-section">
           <div class="filter-group">
-            <label>Dominio</label>
+            <label>掌握程度</label>
             <div class="pill-switch large">
               <button @click="filters.mastery = 'unmastered'" :class="{active: filters.mastery === 'unmastered'}">否</button>
               <button @click="filters.mastery = 'mastered'" :class="{active: filters.mastery === 'mastered'}">是</button>
-              <button @click="filters.mastery = 'all'" :class="{active: filters.mastery === 'all'}">Todos</button>
+              <button @click="filters.mastery = 'all'" :class="{active: filters.mastery === 'all'}">全部</button>
             </div>
           </div>
           <div class="filter-group">
@@ -238,7 +238,7 @@ async function startCustomStudy() {
           <label class="section-title">标签</label>
           <div class="tag-list">
             <button v-for="tag in visibleTags" :key="tag.name" @click="toggleTag(tag.name)" class="tag large"
-                    :class="{ 'active': (tag.name === 'Todos' && filters.tags.length === 0) || filters.tags.includes(tag.name) }">
+                    :class="{ 'active': (tag.name === '全部' && filters.tags.length === 0) || filters.tags.includes(tag.name) }">
               {{ tag.name }} <span>{{ tag.count }}</span>
             </button>
             <button v-if="showExpandButton" @click="areTagsExpanded = true" class="tag large expand-btn">...</button>

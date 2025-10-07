@@ -92,9 +92,9 @@ const filteredSentences = computed(() => {
     if (filters.value.mastery !== 'all' && (sentence.is_mastered || false) !== (filters.value.mastery === 'mastered')) return false;
     if (filters.value.studied !== 'all' && (sentence.is_studied || false) !== (filters.value.studied === 'studied')) return false;
     const sentenceTags = sentence.tags || [];
-    if (filters.value.tags.length > 0 && !filters.value.tags.includes('Todos')) {
+    if (filters.value.tags.length > 0 && !filters.value.tags.includes('全部')) {
         let matchesTag = false;
-        if (filters.value.tags.includes('Sin etiqueta') && sentenceTags.length === 0) matchesTag = true;
+        if (filters.value.tags.includes('无标签') && sentenceTags.length === 0) matchesTag = true;
         if (sentenceTags.some(tag => filters.value.tags.includes(tag))) matchesTag = true;
         if (!matchesTag) return false;
     }
@@ -114,8 +114,8 @@ const tagsWithCounts = computed(() => {
         else untaggedCount++;
     });
     const tagList = allTags.value.map(tag => ({ name: tag, count: counts[tag] || 0 }));
-    tagList.unshift({ name: 'Sin etiqueta', count: untaggedCount });
-    tagList.unshift({ name: 'Todos', count: preFiltered.length });
+    tagList.unshift({ name: '无标签', count: untaggedCount });
+    tagList.unshift({ name: '全部', count: preFiltered.length });
     return tagList.filter(t => t.count > 0);
 });
 const currentQuestion = computed(() => quizQuestions.value[currentQuestionIndex.value]);
@@ -198,7 +198,7 @@ async function resetQuiz() {
     currentQuestionIndex.value = 0;
 }
 function toggleTag(tag) {
-  if (tag === 'Todos') {
+  if (tag === '全部') {
     filters.value.tags = [];
     return;
   }
@@ -235,23 +235,23 @@ function replayTestAudio() {
                             <div class="pill-switch">
                                 <button @click="filters.studied = 'studied'" :class="{active: filters.studied === 'studied'}">Sí</button>
                                 <button @click="filters.studied = 'unstudied'" :class="{active: filters.studied === 'unstudied'}">No</button>
-                                <button @click="filters.studied = 'all'" :class="{active: filters.studied === 'all'}">Todos</button>
+                                <button @click="filters.studied = 'all'" :class="{active: filters.studied === 'all'}">全部</button>
                             </div>
                         </div>
                         <div class="filter-group">
-                            <label>Dominio</label>
+                            <label>掌握程度</label>
                             <div class="pill-switch">
                                 <button @click="filters.mastery = 'unmastered'" :class="{active: filters.mastery === 'unmastered'}">No</button>
                                 <button @click="filters.mastery = 'mastered'" :class="{active: filters.mastery === 'mastered'}">Sí</button>
-                                <button @click="filters.mastery = 'all'" :class="{active: filters.mastery === 'all'}">Todos</button>
+                                <button @click="filters.mastery = 'all'" :class="{active: filters.mastery === 'all'}">全部</button>
                             </div>
                         </div>
                     </div>
                     <div class="tags-section">
-                        <label class="section-title">Etiquetas</label>
+                        <label class="section-title">标签</label>
                         <div class="tag-list" ref="tagListRef">
                             <button v-for="tag in tagsWithCounts" :key="tag.name" @click="toggleTag(tag.name)" class="tag"
-                                    :class="{ 'active': (tag.name === 'Todos' && filters.tags.length === 0) || filters.tags.includes(tag.name) }">
+                                    :class="{ 'active': (tag.name === '全部' && filters.tags.length === 0) || filters.tags.includes(tag.name) }">
                             {{ tag.name }} <span>{{ tag.count }}</span>
                             </button>
                         </div>
@@ -291,11 +291,11 @@ function replayTestAudio() {
                 </div>
                 <div class="footer-nav-item" @click="replayTestAudio" :class="{ active: activeReader === 'replay' }">
                     <PlayCircleIcon class="footer-icon" />
-                    <span class="footer-label">Repetir</span>
+                    <span class="footer-label">重复</span>
                 </div>
                 <div class="footer-nav-item" @click="advanceToNextQuestion" :class="{ disabled: !isAnswered }">
                     <ArrowRightCircleIcon class="footer-icon" />
-                    <span class="footer-label">{{ currentQuestionIndex < quizQuestions.length - 1 ? 'Siguiente' : 'Finalizar' }}</span>
+                    <span class="footer-label">{{ currentQuestionIndex < quizQuestions.length - 1 ? '下一题' : '完成' }}</span>
                 </div>
             </footer>
         </div>

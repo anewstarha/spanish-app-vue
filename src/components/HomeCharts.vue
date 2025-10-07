@@ -18,7 +18,7 @@ const totalSentences = computed(() => {
 });
 
 const chartData = computed(() => ({
-  labels: ['Dominadas', 'Estudiadas', 'Sin estudiar'], // 已掌握, 已学习, 未学习
+  labels: ['已掌握', '已学习', '未学习'], // 已掌握, 已学习, 未学习
   datasets: [{
     backgroundColor: ['#28a745', '#4A90E2', '#e9ecef'],
     data: [props.progress.mastered, props.progress.studied, props.progress.unstudied],
@@ -41,9 +41,9 @@ const chartOptions = {
 };
 
 const legendItems = computed(() => [
-  { label: 'Dominadas', value: props.progress.mastered, color: '#28a745' },
-  { label: 'Estudiadas', value: props.progress.studied, color: '#4A90E2' },
-  { label: 'Sin estudiar', value: props.progress.unstudied, color: '#e9ecef' },
+  { label: '已掌握', value: props.progress.mastered, color: '#28a745' },
+  { label: '已学习', value: props.progress.studied, color: '#4A90E2' },
+  { label: '未学习', value: props.progress.unstudied, color: '#e9ecef' },
 ]);
 </script>
 
@@ -56,7 +56,7 @@ const legendItems = computed(() => [
           <Doughnut :data="chartData" :options="chartOptions" />
           <div class="chart-center-text">
             <span class="total-number">{{ totalSentences }}</span>
-            <span class="total-label">Frases</span>
+            <span class="total-label">句子</span>
           </div>
         </div>
         <div class="legend-wrapper">

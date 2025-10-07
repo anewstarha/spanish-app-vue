@@ -67,7 +67,7 @@ watch(() => props.sentence, setupTest, { immediate: true });
       <button v-if="result === null" @click="checkAnswer" class="check-btn">Comprobar</button>
       <div v-if="result === 'correct'" class="feedback correct">✓ 正确！</div>
       <div v-if="result === 'incorrect'" class="feedback incorrect">
-        ✗ Incorrecto, la respuesta correcta es: <strong>{{ blankWord }}</strong>
+        ✗ 错误，正确答案是：<strong>{{ blankWord }}</strong>
       </div>
     </div>
   </div>
