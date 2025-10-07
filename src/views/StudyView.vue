@@ -62,7 +62,7 @@ onMounted(async () => {
 });
 
 const filteredSentences = computed(() => {
-  if (!allSentences.value) return [];
+  if (!allSentences.value || !Array.isArray(allSentences.value)) return [];
   return allSentences.value.filter(sentence => {
     if (filters.value.mastery !== 'all' && (sentence.is_mastered || false) !== (filters.value.mastery === 'mastered')) return false;
     if (filters.value.studied !== 'all' && (sentence.is_studied || false) !== (filters.value.studied === 'studied')) return false;
@@ -92,6 +92,10 @@ const searchedSentences = computed(() => {
 });
 
 const tagsWithCounts = computed(() => {
+  if (!allSentences.value || !Array.isArray(allSentences.value) || !allTags.value || !Array.isArray(allTags.value)) {
+    return [{ name: '全部', count: 0 }];
+  }
+
   const counts = {};
   let untaggedCount = 0;
   const preFiltered = allSentences.value.filter(s => {
