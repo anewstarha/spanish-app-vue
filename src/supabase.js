@@ -12,7 +12,7 @@ export let supabase
 if (!supabaseUrl || !supabaseAnonKey) {
 	console.error('[supabase] VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY is missing.\n' +
 		'Build your app with these environment variables set so the Supabase client can be initialized.\n' +
-		"Example: create a .env.production with:\nVITE_SUPABASE_URL=your_url\nVITE_SUPABASE_ANON_KEY=your_key\nand run: npm run build && npx cap sync ios")
+		"Example: create a .env.production with:\nVITE_SUPABASE_URL=your_url\nVITE_SUPABASE_ANON_KEY=your_key\nand run: npm run build")
 
 	// 提供一个 minimal auth shim：保证 main.js 里调用的 auth.getSession 和 onAuthStateChange 不会抛错
 	const noopAuth = {
