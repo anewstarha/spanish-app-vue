@@ -60,23 +60,46 @@ const currentTestComponent = computed(() => {
 })
 // 生成带高亮单词的句子HTML
 const highlightedSentence = computed(() => {
+  console.log('计算highlightedSentence开始')
+  console.log('currentSentence exists:', !!store.currentSentence)
+  console.log('currentSentence text:', store.currentSentence?.spanish_text)
+  console.log('allWords exists:', !!store.allWords)
+  console.log('allWords length:', store.allWords?.length)
+
   if (!store.currentSentence?.spanish_text) {
+    console.log('没有句子文本，返回空字符串')
     return ''
   }
 
+  // 先返回一个简单的测试高亮，确保HTML渲染正常
+  const testHighlight = store.currentSentence.spanish_text.replace(/(\w+)/g, (match, word) => {
+    if (word.length > 3) { // 只高亮长度大于3的单词作为测试
+      return `<span class="highlighted-word" style="background: red !important; color: white !important; padding: 4px !important;">${match}</span>`
+    }
+    return match
+  })
+  console.log('测试高亮结果:', testHighlight)
+  return testHighlight
+
+  // 原有的复杂逻辑暂时注释掉
+  /*
   // 安全检查：确保 allWords 是一个数组
   if (!Array.isArray(store.allWords) || store.allWords.length === 0) {
+    console.log('没有单词数据，返回原始句子:', store.currentSentence.spanish_text)
     return store.currentSentence.spanish_text
   }
 
   const coreWords = getCoreWordsFromSentence(store.currentSentence.spanish_text)
+  console.log('核心单词:', coreWords)
 
   const sentenceWords = store.allWords.filter(word =>
     word && word.spanish_word &&
     coreWords.some(cw => cw.toLowerCase() === word.spanish_word.toLowerCase())
   )
+  console.log('匹配的句子单词:', sentenceWords)
 
   if (sentenceWords.length === 0) {
+    console.log('没有匹配的单词，返回原始句子')
     return store.currentSentence.spanish_text
   }
 
@@ -87,12 +110,19 @@ const highlightedSentence = computed(() => {
 
   sentenceWords.forEach(word => {
     const regex = new RegExp(`\\b${word.spanish_word}\\b`, 'gi')
+    console.log(`尝试高亮单词: ${word.spanish_word}, 正则: ${regex}`)
+    const oldText = highlightedText
     highlightedText = highlightedText.replace(regex, (match) =>
       `<span class="highlighted-word" data-word-id="${word.id}" data-word="${word.spanish_word}" data-translation="${word.chinese_translation}">${match}</span>`
     )
+    if (oldText !== highlightedText) {
+      console.log(`成功替换单词: ${word.spanish_word}`)
+    }
   })
 
+  console.log('最终高亮文本:', highlightedText)
   return highlightedText
+  */
 })
 
 // 当前句子中的单词映射，用于点击处理
@@ -610,30 +640,35 @@ function handleContentClick(event) {
   cursor: text;
 }
 
-.highlighted-word {
-  background-color: #fff3e0 !important;
-  color: #e65100 !important;
-  padding: 3px 6px !important;
-  border-radius: 6px !important;
+.spanish-text .highlighted-word,
+span.highlighted-word {
+  background-color: #ff5722 !important;
+  color: #ffffff !important;
+  padding: 4px 8px !important;
+  border-radius: 8px !important;
   cursor: pointer !important;
   transition: all 0.2s ease !important;
   position: relative !important;
-  font-weight: 600 !important;
-  border: 1px solid #ffcc02 !important;
+  font-weight: 700 !important;
+  border: 2px solid #d84315 !important;
+  display: inline-block !important;
+  margin: 0 2px !important;
 }
 
-.highlighted-word:hover {
-  background-color: #ffe0b2 !important;
-  color: #bf360c !important;
-  transform: translateY(-1px) !important;
-  box-shadow: 0 3px 6px rgba(0,0,0,0.15) !important;
-  border-color: #ff9800 !important;
+.spanish-text .highlighted-word:hover,
+span.highlighted-word:hover {
+  background-color: #f44336 !important;
+  color: #ffffff !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.25) !important;
+  border-color: #c62828 !important;
 }
 
-.highlighted-word:active {
+.spanish-text .highlighted-word:active,
+span.highlighted-word:active {
   transform: translateY(0) !important;
-  background-color: #ffcc02 !important;
-  border-color: #f57c00 !important;
+  background-color: #d32f2f !important;
+  border-color: #b71c1c !important;
 }
 
 .ai-word-pill {
