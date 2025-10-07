@@ -43,29 +43,30 @@ const router = createRouter({
   routes,
 })
 
-// 简化后的导航守卫
+// 优化后的导航守卫 - 避免认证状态未初始化时的错误跳转
 router.beforeEach((to, from, next) => {
   const userStore = useUserStore();
 
-  // 在 App.vue 的 onAuthStateChange 生效前，user 状态是 undefined
-  // 如果此时就要做判断，可能会不准确。但 onAuthStateChange 速度很快
-  // 我们可以等待状态明确后再做决定，或者直接先按当前状态判断
+  // 如果认证状态还没有初始化完成，允许导航继续
+  // 这样可以避免在会话检查完成前就做错误的跳转决策
+  if (!userStore.isInitialized) {
+    next();
+    return;
+  }
+
   const isLoggedIn = userStore.isLoggedIn;
   const isAuthPage = to.name === 'login' || to.name === 'register';
 
   if (isLoggedIn && isAuthPage) {
-    next({ name: 'study' });
+    // 已登录用户访问登录/注册页，重定向到主页
+    next({ name: 'home' });
   }
   else if (to.meta.requiresAuth && !isLoggedIn) {
-    // 增加对初始未知状态的处理：如果状态还是 undefined，先跳到登录页
-    // App.vue 的监听器会在之后纠正路由（如果用户实际已登录）
-    if (userStore.user === undefined) {
-      next({ name: 'login' });
-    } else {
-      next({ name: 'login' });
-    }
+    // 需要认证的页面但用户未登录，重定向到登录页
+    next({ name: 'login' });
   }
   else {
+    // 其他情况正常导航
     next();
   }
 });

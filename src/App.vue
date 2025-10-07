@@ -12,10 +12,19 @@ const store = useUserStore()
 
 <template>
   <div class="mobile-container">
-    <main class="main-content">
-      <RouterView />
-    </main>
-    <BottomNav v-if="store.isLoggedIn" class="bottom-nav-container" />
+    <!-- 认证状态初始化加载指示器 -->
+    <div v-if="!store.isInitialized" class="auth-loading">
+      <div class="loading-spinner"></div>
+      <p>正在加载...</p>
+    </div>
+
+    <!-- 主要内容 -->
+    <template v-else>
+      <main class="main-content">
+        <RouterView />
+      </main>
+      <BottomNav v-if="store.isLoggedIn" class="bottom-nav-container" />
+    </template>
   </div>
 </template>
 
@@ -32,5 +41,36 @@ const store = useUserStore()
   flex-grow: 0;
   flex-shrink: 0;
   flex-basis: 10%;
+}
+
+/* 认证加载状态样式 */
+.auth-loading {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+  background-color: #f8f9fa;
+  color: #666;
+}
+
+.loading-spinner {
+  width: 40px;
+  height: 40px;
+  border: 3px solid #e0e0e0;
+  border-top: 3px solid #007bff;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin-bottom: 16px;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.auth-loading p {
+  margin: 0;
+  font-size: 16px;
 }
 </style>

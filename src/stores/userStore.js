@@ -6,11 +6,15 @@ import router from '@/router'
 export const useUserStore = defineStore('user', () => {
     const user = ref(undefined)
     const profile = ref(null)
+    const isInitialized = ref(false) // 新增：标记认证状态是否已初始化
 
     const isLoggedIn = computed(() => user.value !== null && user.value !== undefined)
 
-    async function setUser(newUser) {
+    async function setUser(newUser, markAsInitialized = true) {
         user.value = newUser
+        if (markAsInitialized) {
+            isInitialized.value = true // 标记认证状态已初始化
+        }
         if (newUser) {
             const { data, error } = await supabase
                 .from('profiles')
@@ -45,7 +49,7 @@ export const useUserStore = defineStore('user', () => {
     }
 
     async function signUp(email, password, nickname) {
-        const { data, error } = await supabase.auth.signUp({
+        const { error } = await supabase.auth.signUp({
             email,
             password,
             options: { data: { nickname: nickname } }
@@ -55,7 +59,7 @@ export const useUserStore = defineStore('user', () => {
     }
 
     async function signIn(email, password) {
-        const { data, error } = await supabase.auth.signInWithPassword({
+        const { error } = await supabase.auth.signInWithPassword({
             email,
             password
         })
@@ -72,5 +76,5 @@ export const useUserStore = defineStore('user', () => {
 
     // --- MODIFIED ---
     // 之前叫 updateSessionProgress，现在改名为 updateUserProfile 并导出
-    return { user, profile, isLoggedIn, setUser, updateUserProfile, signUp, signIn, signOut }
+    return { user, profile, isLoggedIn, isInitialized, setUser, updateUserProfile, signUp, signIn, signOut }
 })

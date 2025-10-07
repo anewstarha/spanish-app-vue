@@ -53,5 +53,15 @@ const userStore = useUserStore()
 
 // 监听后续的认证状态变化
 supabase.auth.onAuthStateChange((event, session) => {
-  userStore.setUser(session?.user ?? null)
+  const user = session?.user ?? null
+  userStore.setUser(user)
+
+  // 如果用户已登录但当前在认证页面，重定向到主页
+  if (user && (router.currentRoute.value.name === 'login' || router.currentRoute.value.name === 'register')) {
+    router.push({ name: 'home' })
+  }
+  // 如果用户已登出但在需要认证的页面，重定向到登录页
+  else if (!user && router.currentRoute.value.meta?.requiresAuth) {
+    router.push({ name: 'login' })
+  }
 })
