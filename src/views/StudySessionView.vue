@@ -49,9 +49,9 @@ function shuffleArray(array) {
   return array
 }
 const currentTestComponent = computed(() => {
-  if (mode.value === 'quizzing' && 
-      Array.isArray(testOrder.value) && 
-      testOrder.value.length > 0 && 
+  if (mode.value === 'quizzing' &&
+      Array.isArray(testOrder.value) &&
+      testOrder.value.length > 0 &&
       currentTestIndex.value < testOrder.value.length) {
     const testKey = testOrder.value[currentTestIndex.value]
     return TEST_COMPONENTS[testKey] || null
@@ -63,17 +63,22 @@ const highlightedSentence = computed(() => {
   if (!store.currentSentence?.spanish_text) {
     return ''
   }
-  
+
   // 安全检查：确保 allWords 是一个数组
   if (!Array.isArray(store.allWords) || store.allWords.length === 0) {
     return store.currentSentence.spanish_text
   }
 
   const coreWords = getCoreWordsFromSentence(store.currentSentence.spanish_text)
+
   const sentenceWords = store.allWords.filter(word =>
-    word && word.spanish_word && 
+    word && word.spanish_word &&
     coreWords.some(cw => cw.toLowerCase() === word.spanish_word.toLowerCase())
   )
+
+  if (sentenceWords.length === 0) {
+    return store.currentSentence.spanish_text
+  }
 
   let highlightedText = store.currentSentence.spanish_text
 
@@ -93,7 +98,7 @@ const highlightedSentence = computed(() => {
 // 当前句子中的单词映射，用于点击处理
 const sentenceWordsMap = computed(() => {
   if (!store.currentSentence?.spanish_text) return new Map()
-  
+
   // 安全检查：确保 allWords 是一个数组
   if (!Array.isArray(store.allWords) || store.allWords.length === 0) {
     return new Map()
@@ -101,7 +106,7 @@ const sentenceWordsMap = computed(() => {
 
   const coreWords = getCoreWordsFromSentence(store.currentSentence.spanish_text)
   const sentenceWords = store.allWords.filter(word =>
-    word && word.spanish_word && 
+    word && word.spanish_word &&
     coreWords.some(cw => cw.toLowerCase() === word.spanish_word.toLowerCase())
   )
 
@@ -171,13 +176,13 @@ function handleWordClick(event) {
 const highlightWordsInAiContent = computed(() => {
   return (text) => {
     if (!text || !store.currentSentence?.spanish_text) return text
-    
+
     // 安全检查：确保 allWords 是一个数组
     if (!Array.isArray(store.allWords) || store.allWords.length === 0) return text
 
     const coreWords = getCoreWordsFromSentence(store.currentSentence.spanish_text)
     const sentenceWords = store.allWords.filter(word =>
-      word && word.spanish_word && 
+      word && word.spanish_word &&
       coreWords.some(cw => cw.toLowerCase() === word.spanish_word.toLowerCase())
     )
 
@@ -359,7 +364,7 @@ function handleContentClick(event) {
           </div>
           <div class="collapsible-area">
             <!-- 词汇列表已移除，改为句子内高亮显示 -->
-            <details class="collapsible-item">
+            <details class="collapsible-item" open>
               <summary>AI 解释</summary>
               <div class="collapsible-content" @click="handleContentClick">
                 <div
@@ -606,37 +611,42 @@ function handleContentClick(event) {
 }
 
 .highlighted-word {
-  background-color: #e3f2fd;
-  color: #1976d2;
-  padding: 2px 4px;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  position: relative;
+  background-color: #fff3e0 !important;
+  color: #e65100 !important;
+  padding: 3px 6px !important;
+  border-radius: 6px !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+  position: relative !important;
+  font-weight: 600 !important;
+  border: 1px solid #ffcc02 !important;
 }
 
 .highlighted-word:hover {
-  background-color: #bbdefb;
-  color: #0d47a1;
-  transform: translateY(-1px);
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  background-color: #ffe0b2 !important;
+  color: #bf360c !important;
+  transform: translateY(-1px) !important;
+  box-shadow: 0 3px 6px rgba(0,0,0,0.15) !important;
+  border-color: #ff9800 !important;
 }
 
 .highlighted-word:active {
-  transform: translateY(0);
-  background-color: #90caf9;
+  transform: translateY(0) !important;
+  background-color: #ffcc02 !important;
+  border-color: #f57c00 !important;
 }
 
 .ai-word-pill {
-  background-color: #e8f5e8;
-  color: #2e7d2e;
-  padding: 3px 8px;
-  border-radius: 12px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  font-weight: 500;
-  display: inline-block;
-  margin: 0 2px;
+  background-color: #e1f5fe !important;
+  color: #01579b !important;
+  padding: 4px 10px !important;
+  border-radius: 15px !important;
+  cursor: pointer !important;
+  transition: all 0.2s ease !important;
+  font-weight: 600 !important;
+  display: inline-block !important;
+  margin: 0 3px !important;
+  border: 1px solid #03a9f4 !important;
 }
 
 .ai-word-pill:hover {
