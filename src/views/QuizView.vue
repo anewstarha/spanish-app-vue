@@ -233,16 +233,16 @@ function replayTestAudio() {
                         <div class="filter-group">
                             <label>学习状态</label>
                             <div class="pill-switch">
-                                <button @click="filters.studied = 'studied'" :class="{active: filters.studied === 'studied'}">Sí</button>
-                                <button @click="filters.studied = 'unstudied'" :class="{active: filters.studied === 'unstudied'}">No</button>
+                                <button @click="filters.studied = 'studied'" :class="{active: filters.studied === 'studied'}">是</button>
+                                <button @click="filters.studied = 'unstudied'" :class="{active: filters.studied === 'unstudied'}">否</button>
                                 <button @click="filters.studied = 'all'" :class="{active: filters.studied === 'all'}">全部</button>
                             </div>
                         </div>
                         <div class="filter-group">
                             <label>掌握程度</label>
                             <div class="pill-switch">
-                                <button @click="filters.mastery = 'unmastered'" :class="{active: filters.mastery === 'unmastered'}">No</button>
-                                <button @click="filters.mastery = 'mastered'" :class="{active: filters.mastery === 'mastered'}">Sí</button>
+                                <button @click="filters.mastery = 'unmastered'" :class="{active: filters.mastery === 'unmastered'}">否</button>
+                                <button @click="filters.mastery = 'mastered'" :class="{active: filters.mastery === 'mastered'}">是</button>
                                 <button @click="filters.mastery = 'all'" :class="{active: filters.mastery === 'all'}">全部</button>
                             </div>
                         </div>
@@ -256,10 +256,10 @@ function replayTestAudio() {
                             </button>
                         </div>
                          <button v-if="showExpandButton && !areTagsExpanded" @click="areTagsExpanded = true" class="expand-btn">
-                            Más...
+                            更多...
                         </button>
                         <button v-if="areTagsExpanded" @click="collapseTags" class="expand-btn">
-                            Mostrar menos
+                            显示更少
                         </button>
                     </div>
                     <div class="action-section">

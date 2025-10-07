@@ -26,6 +26,7 @@ const isRandomSelection = ref(false);
 const isSearchMode = ref(false);
 const searchQuery = ref('');
 const selectedSentenceIds = ref(new Set());
+const showResumeDialog = ref(false);
 
 function watchUntil(condition) {
   return new Promise(resolve => {
@@ -42,11 +43,7 @@ onMounted(async () => {
   await watchUntil(() => userStore.profile !== null);
   const unfinishedSession = userStore.profile?.current_session_ids;
   if (unfinishedSession && unfinishedSession.length > 0) {
-    if (confirm("发现未完成的学习会话，是否继续？")) {
-      await startStudySession();
-    } else {
-      await userStore.updateUserProfile({ current_session_ids: null, current_session_progress: null });
-    }
+    showResumeDialog.value = true;
   }
   try {
     const data = await dataService.getStudyData();
@@ -183,8 +180,9 @@ async function startCustomStudy() {
     router.push({ name: 'studySession' });
 }
 
-async function startStudySession() {
+async function handleContinueStudy() {
     // 继续未完成的学习会话
+    showResumeDialog.value = false;
     const sessionIds = userStore.profile?.current_session_ids || [];
     if (sessionIds.length > 0) {
         // 使用 startSession 方法来正确初始化学习会话
@@ -196,10 +194,28 @@ async function startStudySession() {
         router.push({ name: 'studySession' });
     }
 }
+
+async function handleReselect() {
+    // 重新选择，清除未完成的会话
+    showResumeDialog.value = false;
+    await userStore.updateUserProfile({ current_session_ids: null, current_session_progress: null });
+}
 </script>
 
 <template>
   <div class="study-view-page">
+    <!-- 继续学习弹窗 -->
+    <div v-if="showResumeDialog" class="dialog-overlay">
+      <div class="dialog-content">
+        <h3>发现未完成的学习会话</h3>
+        <p>您有一个进行中的学习会话，是否要继续？</p>
+        <div class="dialog-buttons">
+          <button @click="handleContinueStudy" class="btn btn-primary">继续学习</button>
+          <button @click="handleReselect" class="btn btn-secondary">重新选择</button>
+        </div>
+      </div>
+    </div>
+
     <div v-if="isLoading" class="loading-indicator">加载中...</div>
 
     <div v-else-if="isSearchMode" class="search-view">
@@ -267,7 +283,7 @@ async function startStudySession() {
             <input type="number" v-model="selectionCount" min="1" :max="filteredSentences?.length || 0" class="count-input">
           </div>
           <div class="setting-row">
-            <label>Selección Aleatoria</label>
+            <label>随机选择</label>
             <label class="switch"><input type="checkbox" v-model="isRandomSelection"><span class="slider round"></span></label>
           </div>
           <button @click="startQuickStudy" class="btn btn-primary">开始学习</button>
@@ -432,4 +448,75 @@ async function startStudySession() {
 .slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background-color: white; transition: .4s; border-radius: 50%; }
 input:checked + .slider { background-color: #4A90E2; }
 input:checked + .slider:before { transform: translateX(20px); }
+
+/* 弹窗样式 */
+.dialog-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.dialog-content {
+  background: white;
+  border-radius: 16px;
+  padding: 24px;
+  max-width: 400px;
+  width: 90%;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+.dialog-content h3 {
+  margin: 0 0 12px 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #333;
+  text-align: center;
+}
+
+.dialog-content p {
+  margin: 0 0 24px 0;
+  color: #666;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.dialog-buttons {
+  display: flex;
+  gap: 12px;
+}
+
+.dialog-buttons .btn {
+  flex: 1;
+  padding: 12px 24px;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-primary {
+  background-color: #4A90E2;
+  color: white;
+}
+
+.btn-primary:hover {
+  background-color: #357ABD;
+}
+
+.btn-secondary {
+  background-color: #f5f5f5;
+  color: #666;
+}
+
+.btn-secondary:hover {
+  background-color: #e5e5e5;
+}
 </style>

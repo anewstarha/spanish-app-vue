@@ -115,7 +115,7 @@ function manageContent() {
             Prueba Rápida
         </button>
         <button @click="manageContent" class="btn btn-primary action-btn">
-            Gestionar Contenido
+            管理内容
         </button>
     </section>
   </div>
