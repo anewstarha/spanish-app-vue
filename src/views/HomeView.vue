@@ -109,10 +109,10 @@ function manageContent() {
 
     <section class="quick-actions">
         <button @click="quickStudy" class="btn btn-primary action-btn">
-            Aprendizaje Rápido
+            快速学习
         </button>
         <button @click="quickTest" class="btn btn-primary action-btn">
-            Prueba Rápida
+            快速测试
         </button>
         <button @click="manageContent" class="btn btn-primary action-btn">
             管理内容

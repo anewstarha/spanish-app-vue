@@ -28,6 +28,7 @@ const filters = ref({
   studied: 'studied',
   tags: [],
 });
+const showResumeQuizDialog = ref(false);
 const quizQuestions = ref([]);
 const currentQuestionIndex = ref(0);
 const isAnswered = ref(false);
@@ -56,8 +57,8 @@ onMounted(async () => {
   const shouldAutoResume = history.state?.autoResume === true;
 
   if (unfinishedQuiz && unfinishedQuiz.length > 0) {
-    // 如果是自动恢复，或者用户确认继续，则恢复会话
-    if (shouldAutoResume || confirm("发现未完成的测试，是否继续？")) {
+    // 如果是自动恢复，直接恢复会话
+    if (shouldAutoResume) {
         const progress = userStore.profile.current_quiz_progress || 0;
         quizQuestions.value = unfinishedQuiz;
         currentQuestionIndex.value = progress;
@@ -66,8 +67,10 @@ onMounted(async () => {
         isLoading.value = false;
         return; // 直接进入测试，跳过后续数据加载
     } else {
-        // 如果用户选择不继续，则清除未完成的测试状态
-        await userStore.updateUserProfile({ current_quiz_questions: null, current_quiz_progress: null });
+        // 显示自定义弹窗
+        showResumeQuizDialog.value = true;
+        isLoading.value = false;
+        return;
     }
   }
   // --- 【修改结束】 ---
@@ -194,8 +197,33 @@ function handleAnswered() {
 async function resetQuiz() {
     await userStore.updateUserProfile({ current_quiz_questions: null, current_quiz_progress: null });
     pageState.value = 'filtering';
-    quizQuestions.value = [];
-    currentQuestionIndex.value = 0;
+}
+
+async function handleContinueQuiz() {
+    // 继续未完成的测试
+    showResumeQuizDialog.value = false;
+    const unfinishedQuiz = userStore.profile?.current_quiz_questions;
+    const progress = userStore.profile.current_quiz_progress || 0;
+    quizQuestions.value = unfinishedQuiz;
+    currentQuestionIndex.value = progress;
+    isAnswered.value = false;
+    pageState.value = 'quizzing';
+}
+
+async function handleReselectQuiz() {
+    // 重新选择，清除未完成的测试
+    showResumeQuizDialog.value = false;
+    await userStore.updateUserProfile({ current_quiz_questions: null, current_quiz_progress: null });
+    // 继续加载数据以便重新选择
+    try {
+        const data = await dataService.getStudyData();
+        allSentences.value = data.sentences;
+        allTags.value = data.allTags;
+    } catch (error) {
+        console.error('加载测试数据时出错:', error);
+    } finally {
+        isLoading.value = false;
+    }
 }
 function toggleTag(tag) {
   if (tag === '全部') {
@@ -223,6 +251,18 @@ function replayTestAudio() {
 </script>
 
 <template>
+    <!-- 继续测试弹窗 -->
+    <div v-if="showResumeQuizDialog" class="dialog-overlay">
+      <div class="dialog-content">
+        <h3>发现未完成的测试</h3>
+        <p>您有一个进行中的测试，是否要继续？</p>
+        <div class="dialog-buttons">
+          <button @click="handleContinueQuiz" class="btn btn-primary">继续测试</button>
+          <button @click="handleReselectQuiz" class="btn btn-secondary">重新选择</button>
+        </div>
+      </div>
+    </div>
+
     <div class="page-container" :class="{ 'is-expanded': areTagsExpanded }">
         <div v-if="pageState === 'filtering'" class="filter-wrapper">
             <AppHeader />
@@ -418,5 +458,76 @@ function replayTestAudio() {
 .action-section .btn {
   width: 100%;
   box-sizing: border-box; /* 这是一个好习惯，确保 padding 不会导致宽度溢出容器 */
+}
+
+/* 弹窗样式 */
+.dialog-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.dialog-content {
+  background: white;
+  border-radius: 16px;
+  padding: 24px;
+  max-width: 400px;
+  width: 90%;
+  box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+}
+
+.dialog-content h3 {
+  margin: 0 0 12px 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #333;
+  text-align: center;
+}
+
+.dialog-content p {
+  margin: 0 0 24px 0;
+  color: #666;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.dialog-buttons {
+  display: flex;
+  gap: 12px;
+}
+
+.dialog-buttons .btn {
+  flex: 1;
+  padding: 12px 24px;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-primary {
+  background-color: #4A90E2;
+  color: white;
+}
+
+.btn-primary:hover {
+  background-color: #357ABD;
+}
+
+.btn-secondary {
+  background-color: #f5f5f5;
+  color: #666;
+}
+
+.btn-secondary:hover {
+  background-color: #e5e5e5;
 }
 </style>
