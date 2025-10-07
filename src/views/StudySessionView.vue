@@ -60,46 +60,23 @@ const currentTestComponent = computed(() => {
 })
 // 生成带高亮单词的句子HTML
 const highlightedSentence = computed(() => {
-  console.log('计算highlightedSentence开始')
-  console.log('currentSentence exists:', !!store.currentSentence)
-  console.log('currentSentence text:', store.currentSentence?.spanish_text)
-  console.log('allWords exists:', !!store.allWords)
-  console.log('allWords length:', store.allWords?.length)
-
   if (!store.currentSentence?.spanish_text) {
-    console.log('没有句子文本，返回空字符串')
     return ''
   }
 
-  // 先返回一个简单的测试高亮，确保HTML渲染正常
-  const testHighlight = store.currentSentence.spanish_text.replace(/(\w+)/g, (match, word) => {
-    if (word.length > 3) { // 只高亮长度大于3的单词作为测试
-      return `<span class="highlighted-word" style="background: red !important; color: white !important; padding: 4px !important;">${match}</span>`
-    }
-    return match
-  })
-  console.log('测试高亮结果:', testHighlight)
-  return testHighlight
-
-  // 原有的复杂逻辑暂时注释掉
-  /*
   // 安全检查：确保 allWords 是一个数组
   if (!Array.isArray(store.allWords) || store.allWords.length === 0) {
-    console.log('没有单词数据，返回原始句子:', store.currentSentence.spanish_text)
     return store.currentSentence.spanish_text
   }
 
   const coreWords = getCoreWordsFromSentence(store.currentSentence.spanish_text)
-  console.log('核心单词:', coreWords)
 
   const sentenceWords = store.allWords.filter(word =>
     word && word.spanish_word &&
     coreWords.some(cw => cw.toLowerCase() === word.spanish_word.toLowerCase())
   )
-  console.log('匹配的句子单词:', sentenceWords)
 
   if (sentenceWords.length === 0) {
-    console.log('没有匹配的单词，返回原始句子')
     return store.currentSentence.spanish_text
   }
 
@@ -110,19 +87,12 @@ const highlightedSentence = computed(() => {
 
   sentenceWords.forEach(word => {
     const regex = new RegExp(`\\b${word.spanish_word}\\b`, 'gi')
-    console.log(`尝试高亮单词: ${word.spanish_word}, 正则: ${regex}`)
-    const oldText = highlightedText
     highlightedText = highlightedText.replace(regex, (match) =>
-      `<span class="highlighted-word" data-word-id="${word.id}" data-word="${word.spanish_word}" data-translation="${word.chinese_translation}">${match}</span>`
+      `<span class="highlighted-word" data-word-id="${word.id}" data-word="${word.spanish_word}" data-translation="${word.chinese_translation}" style="background-color: #ff5722 !important; color: white !important; padding: 3px 6px !important; border-radius: 4px !important; font-weight: 600 !important;">${match}</span>`
     )
-    if (oldText !== highlightedText) {
-      console.log(`成功替换单词: ${word.spanish_word}`)
-    }
   })
 
-  console.log('最终高亮文本:', highlightedText)
   return highlightedText
-  */
 })
 
 // 当前句子中的单词映射，用于点击处理
@@ -205,16 +175,31 @@ function handleWordClick(event) {
 // 处理AI解释内容，高亮句子中出现的单词
 const highlightWordsInAiContent = computed(() => {
   return (text) => {
-    if (!text || !store.currentSentence?.spanish_text) return text
+    console.log('处理AI解释文本:', text)
+    if (!text || !store.currentSentence?.spanish_text) {
+      console.log('没有文本或句子')
+      return text
+    }
 
     // 安全检查：确保 allWords 是一个数组
-    if (!Array.isArray(store.allWords) || store.allWords.length === 0) return text
+    if (!Array.isArray(store.allWords) || store.allWords.length === 0) {
+      console.log('没有单词数据，返回原始文本')
+      return text
+    }
 
     const coreWords = getCoreWordsFromSentence(store.currentSentence.spanish_text)
+    console.log('AI解释中匹配的核心单词:', coreWords)
+
     const sentenceWords = store.allWords.filter(word =>
       word && word.spanish_word &&
       coreWords.some(cw => cw.toLowerCase() === word.spanish_word.toLowerCase())
     )
+    console.log('AI解释中可高亮的句子单词:', sentenceWords)
+
+    if (sentenceWords.length === 0) {
+      console.log('没有可高亮的单词')
+      return text
+    }
 
     let highlightedText = text
 
@@ -223,11 +208,16 @@ const highlightWordsInAiContent = computed(() => {
 
     sentenceWords.forEach(word => {
       const regex = new RegExp(`\\b${word.spanish_word}\\b`, 'gi')
+      const oldText = highlightedText
       highlightedText = highlightedText.replace(regex, (match) =>
-        `<span class="ai-word-pill" data-word-id="${word.id}" data-word="${word.spanish_word}">${match}</span>`
+        `<span class="ai-word-pill" data-word-id="${word.id}" data-word="${word.spanish_word}" style="background-color: #e1f5fe !important; color: #01579b !important; padding: 3px 8px !important; border-radius: 12px !important; cursor: pointer !important; font-weight: 600 !important; border: 1px solid #03a9f4 !important;">${match}</span>`
       )
+      if (oldText !== highlightedText) {
+        console.log(`AI解释中成功高亮单词: ${word.spanish_word}`)
+      }
     })
 
+    console.log('AI解释高亮结果:', highlightedText)
     return highlightedText
   }
 })
@@ -397,6 +387,14 @@ function handleContentClick(event) {
             <details class="collapsible-item" open>
               <summary>AI 解释</summary>
               <div class="collapsible-content" @click="handleContentClick">
+                <!-- 调试信息 -->
+                <div v-if="!store.currentSentence.ai_notes" style="color: red; padding: 10px; border: 1px solid red;">
+                  AI解释数据不存在
+                </div>
+                <div v-else-if="typeof store.currentSentence.ai_notes !== 'object'" style="color: orange; padding: 10px; border: 1px solid orange;">
+                  AI解释数据类型错误: {{ typeof store.currentSentence.ai_notes }}
+                </div>
+
                 <div
                   v-if="
                     store.currentSentence.ai_notes &&
