@@ -6,7 +6,7 @@ import { useUserStore } from '@/stores/userStore'
 import { useRouter } from 'vue-router'
 import * as speechService from '@/services/speechService'
 import AiExplanationModal from '@/components/AiExplanationModal.vue'
-import { getCoreWordsFromSentence } from '@/utils/textUtils'
+import { getCoreWordsFromSentence, linkifySpanishWords } from '@/utils/textUtils'
 import {
   PlayCircleIcon,
   SpeakerWaveIcon,
@@ -28,6 +28,8 @@ const isPlaylistVisible = ref(false)
 const activeReader = ref(null)
 const isModalVisible = ref(false)
 const selectedWord = ref(null)
+
+
 const wordExplanation = ref(null)
 const isExplanationLoading = ref(false)
 const mode = ref('studying')
@@ -58,19 +60,18 @@ const currentTestComponent = computed(() => {
   }
   return null
 })
-// 生成带高亮单词的句子HTML
+// 生成带高亮单词的句子HTML - 只高亮数据库中存在的单词
 const highlightedSentence = computed(() => {
   if (!store.currentSentence?.spanish_text) {
     return ''
   }
 
-  // 安全检查：确保 allWords 是一个数组
+  // 如果没有单词数据，返回原句子
   if (!Array.isArray(store.allWords) || store.allWords.length === 0) {
     return store.currentSentence.spanish_text
   }
 
   const coreWords = getCoreWordsFromSentence(store.currentSentence.spanish_text)
-
   const sentenceWords = store.allWords.filter(word =>
     word && word.spanish_word &&
     coreWords.some(cw => cw.toLowerCase() === word.spanish_word.toLowerCase())
@@ -88,14 +89,12 @@ const highlightedSentence = computed(() => {
   sentenceWords.forEach(word => {
     const regex = new RegExp(`\\b${word.spanish_word}\\b`, 'gi')
     highlightedText = highlightedText.replace(regex, (match) =>
-      `<span class="highlighted-word" data-word-id="${word.id}" data-word="${word.spanish_word}" data-translation="${word.chinese_translation}" style="background-color: #ff5722 !important; color: white !important; padding: 3px 6px !important; border-radius: 4px !important; font-weight: 600 !important;">${match}</span>`
+      `<span class="sentence-highlight-word" data-word-id="${word.id}" data-word="${word.spanish_word}" data-translation="${word.chinese_translation}">${match}</span>`
     )
   })
 
   return highlightedText
-})
-
-// 当前句子中的单词映射，用于点击处理
+})// 当前句子中的单词映射，用于AI解释中的单词点击处理
 const sentenceWordsMap = computed(() => {
   if (!store.currentSentence?.spanish_text) return new Map()
 
@@ -128,11 +127,40 @@ watch(
   },
   { immediate: true },
 )
-if (import.meta.env.PROD) {
-  if (store.allSentencesInSession.length === 0 && !store.isLoading) {
-    router.replace({ name: 'study' })
-  }
-}
+
+// 页面刷新时尝试恢复会话
+watch(
+  () => userStore.profile,
+  async (profile) => {
+    if (profile &&
+        profile.current_session_ids &&
+        profile.current_session_ids.length > 0 &&
+        store.allSentencesInSession.length === 0 &&
+        !store.isLoading) {
+
+      console.log('检测到保存的会话，正在恢复...')
+      await store.resumeSession(profile.current_session_ids, profile.current_session_progress || 0)
+    }
+  },
+  { immediate: true }
+)
+
+// 如果没有会话数据且不是在加载中，跳转回学习页面
+watch(
+  () => [store.allSentencesInSession.length, store.isLoading, userStore.isInitialized],
+  ([sessionsLength, isLoading, isInitialized]) => {
+    if (isInitialized && !isLoading && sessionsLength === 0) {
+      // 稍微延迟一下，给恢复会话的时间
+      setTimeout(() => {
+        if (store.allSentencesInSession.length === 0 && !store.isLoading) {
+          console.log('没有会话数据，跳转回学习页面')
+          router.replace({ name: 'study' })
+        }
+      }, 1000)
+    }
+  },
+  { immediate: true }
+)
 function handleJumpTo(index) {
   store.jumpTo(index)
   isPlaylistVisible.value = false
@@ -159,7 +187,8 @@ function handlePlay(type) {
 // 处理句子中高亮单词点击 - 仅发声
 function handleWordClick(event) {
   try {
-    const span = event.target.closest('.highlighted-word')
+    // 查找句子中的高亮单词
+    const span = event.target.closest('.sentence-highlight-word')
     if (!span) return
 
     const wordText = span.dataset.word
@@ -172,60 +201,54 @@ function handleWordClick(event) {
   }
 }
 
-// 处理AI解释内容，高亮句子中出现的单词
+// 处理AI解释内容，双层高亮：数据库单词+其他西语单词
 const highlightWordsInAiContent = computed(() => {
   return (text) => {
-    console.log('处理AI解释文本:', text)
-    if (!text || !store.currentSentence?.spanish_text) {
-      console.log('没有文本或句子')
-      return text
-    }
+    if (!text) return text
 
-    // 安全检查：确保 allWords 是一个数组
-    if (!Array.isArray(store.allWords) || store.allWords.length === 0) {
-      console.log('没有单词数据，返回原始文本')
-      return text
-    }
+    let processedText = text
 
-    const coreWords = getCoreWordsFromSentence(store.currentSentence.spanish_text)
-    console.log('AI解释中匹配的核心单词:', coreWords)
-
-    const sentenceWords = store.allWords.filter(word =>
-      word && word.spanish_word &&
-      coreWords.some(cw => cw.toLowerCase() === word.spanish_word.toLowerCase())
-    )
-    console.log('AI解释中可高亮的句子单词:', sentenceWords)
-
-    if (sentenceWords.length === 0) {
-      console.log('没有可高亮的单词')
-      return text
-    }
-
-    let highlightedText = text
-
-    // 按单词长度降序排序，避免短词被长词包含
-    sentenceWords.sort((a, b) => b.spanish_word.length - a.spanish_word.length)
-
-    sentenceWords.forEach(word => {
-      const regex = new RegExp(`\\b${word.spanish_word}\\b`, 'gi')
-      const oldText = highlightedText
-      highlightedText = highlightedText.replace(regex, (match) =>
-        `<span class="ai-word-pill" data-word-id="${word.id}" data-word="${word.spanish_word}" style="background-color: #e1f5fe !important; color: #01579b !important; padding: 3px 8px !important; border-radius: 12px !important; cursor: pointer !important; font-weight: 600 !important; border: 1px solid #03a9f4 !important;">${match}</span>`
+    // 第一层：高亮数据库中的单词（深绿色，点击显示AI解释）
+    if (store.currentSentence?.spanish_text && Array.isArray(store.allWords) && store.allWords.length > 0) {
+      const coreWords = getCoreWordsFromSentence(store.currentSentence.spanish_text)
+      const sentenceWords = store.allWords.filter(word =>
+        word && word.spanish_word &&
+        coreWords.some(cw => cw.toLowerCase() === word.spanish_word.toLowerCase())
       )
-      if (oldText !== highlightedText) {
-        console.log(`AI解释中成功高亮单词: ${word.spanish_word}`)
-      }
-    })
 
-    console.log('AI解释高亮结果:', highlightedText)
-    return highlightedText
+      if (sentenceWords.length > 0) {
+        // 按单词长度降序排序，避免短词被长词包含
+        sentenceWords.sort((a, b) => b.spanish_word.length - a.spanish_word.length)
+
+        sentenceWords.forEach(word => {
+          const regex = new RegExp(`\\b${word.spanish_word}\\b`, 'gi')
+          processedText = processedText.replace(regex, (match) =>
+            `<span class="ai-database-word" data-word-id="${word.id}" data-word="${word.spanish_word}">${match}</span>`
+          )
+        })
+      }
+    }
+
+    // 第二层：高亮其他西语单词（浅蓝色，点击发声）
+    const spanishWordRegex = /\b([a-zA-ZñÑáéíóúüÁÉÍÓÚÜ]{3,})\b/g
+    const parts = processedText.split(/(<span[^>]*>.*?<\/span>)/g)
+
+    for (let i = 0; i < parts.length; i += 2) {
+      if (parts[i] && !parts[i].includes('<')) {
+        parts[i] = parts[i].replace(spanishWordRegex, (match, word) =>
+          `<span class="clickable-word" data-word="${word}">${match}</span>`
+        )
+      }
+    }
+
+    return parts.join('')
   }
 })
 
-// 处理AI解释中单词点击 - 显示单词解释
-function handleAiWordClick(event) {
+// 处理AI解释中数据库单词点击 - 显示AI解释
+function handleAiDatabaseWordClick(event) {
   try {
-    const span = event.target.closest('.ai-word-pill')
+    const span = event.target.closest('.ai-database-word')
     if (!span) return
 
     const wordId = parseInt(span.dataset.wordId)
@@ -236,7 +259,7 @@ function handleAiWordClick(event) {
 
     showWordExplanation(word)
   } catch (error) {
-    console.error('处理AI单词点击时出错:', error)
+    console.error('处理AI数据库单词点击时出错:', error)
   }
 }
 
@@ -316,6 +339,13 @@ function replayTestAudio() {
 }
 
 function handleContentClick(event) {
+  // 第一优先级：处理数据库单词（显示AI解释）
+  if (event.target && event.target.matches('.ai-database-word')) {
+    handleAiDatabaseWordClick(event);
+    return;
+  }
+
+  // 第二优先级：处理其他西语单词（发声）
   if (event.target && event.target.matches('.clickable-word')) {
     const word = event.target.dataset.word;
     if (word) {
@@ -387,21 +417,13 @@ function handleContentClick(event) {
             <details class="collapsible-item" open>
               <summary>AI 解释</summary>
               <div class="collapsible-content" @click="handleContentClick">
-                <!-- 调试信息 -->
-                <div v-if="!store.currentSentence.ai_notes" style="color: red; padding: 10px; border: 1px solid red;">
-                  AI解释数据不存在
-                </div>
-                <div v-else-if="typeof store.currentSentence.ai_notes !== 'object'" style="color: orange; padding: 10px; border: 1px solid orange;">
-                  AI解释数据类型错误: {{ typeof store.currentSentence.ai_notes }}
-                </div>
-
                 <div
                   v-if="
                     store.currentSentence.ai_notes &&
                     typeof store.currentSentence.ai_notes === 'object'
                   "
                   class="ai-notes-container"
-                  @click="handleAiWordClick"
+                  @click="handleContentClick"
                 >
                   <div class="ai-section" v-if="store.currentSentence.ai_notes.grammar_analysis">
                     <h4 class="ai-section-title">语法解析</h4>
@@ -638,61 +660,52 @@ function handleContentClick(event) {
   cursor: text;
 }
 
-.spanish-text .highlighted-word,
-span.highlighted-word {
-  background-color: #ff5722 !important;
-  color: #ffffff !important;
-  padding: 4px 8px !important;
-  border-radius: 8px !important;
-  cursor: pointer !important;
-  transition: all 0.2s ease !important;
-  position: relative !important;
-  font-weight: 700 !important;
-  border: 2px solid #d84315 !important;
-  display: inline-block !important;
-  margin: 0 2px !important;
+/* 句子中数据库单词的高亮样式 */
+.sentence-highlight-word {
+  background-color: #e8f5e8;
+  cursor: pointer;
+  padding: 1px 3px;
+  margin: 0 1px;
+  border-radius: 4px;
+  display: inline-block;
+  transition: background-color 0.2s ease;
 }
 
-.spanish-text .highlighted-word:hover,
-span.highlighted-word:hover {
-  background-color: #f44336 !important;
-  color: #ffffff !important;
-  transform: translateY(-2px) !important;
-  box-shadow: 0 4px 8px rgba(0,0,0,0.25) !important;
-  border-color: #c62828 !important;
-}
-
-.spanish-text .highlighted-word:active,
-span.highlighted-word:active {
-  transform: translateY(0) !important;
-  background-color: #d32f2f !important;
-  border-color: #b71c1c !important;
-}
-
-.ai-word-pill {
-  background-color: #e1f5fe !important;
-  color: #01579b !important;
-  padding: 4px 10px !important;
-  border-radius: 15px !important;
-  cursor: pointer !important;
-  transition: all 0.2s ease !important;
-  font-weight: 600 !important;
-  display: inline-block !important;
-  margin: 0 3px !important;
-  border: 1px solid #03a9f4 !important;
-}
-
-.ai-word-pill:hover {
+.sentence-highlight-word:hover {
   background-color: #c8e6c9;
-  color: #1b5e20;
-  transform: translateY(-1px);
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
-.ai-word-pill:active {
-  transform: translateY(0);
+/* AI解释中数据库单词的样式 */
+:global(.ai-database-word) {
+  cursor: pointer;
+  background-color: #c8e6c9;
+  border-radius: 4px;
+  padding: 1px 3px;
+  margin: 0 1px;
+  display: inline-block;
+  transition: background-color 0.2s ease;
+}
+
+:global(.ai-database-word:hover) {
   background-color: #a5d6a7;
 }
+
+/* AI解释中其他西语单词的样式 */
+:global(.clickable-word) {
+  cursor: pointer;
+  background-color: #e6f3ff;
+  border-radius: 4px;
+  padding: 0 2px;
+  transition: background-color 0.2s ease;
+  display: inline-block;
+  margin: 0 1px;
+}
+
+:global(.clickable-word:hover) {
+  background-color: #cce7ff;
+}
+
+
 .chinese-text {
   font-size: 16px;
   color: #8a94a6;
