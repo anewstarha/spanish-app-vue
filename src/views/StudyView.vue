@@ -42,12 +42,10 @@ onMounted(async () => {
   await watchUntil(() => userStore.profile !== null);
   const unfinishedSession = userStore.profile?.current_session_ids;
   if (unfinishedSession && unfinishedSession.length > 0) {
-    if (studyStore.currentSessionIds.length > 0) {
-      if (confirm("发现未完成的学习会话，是否继续？")) {
-        await startStudySession();
-      } else {
-        await userStore.updateUserProfile({ current_session_ids: null, current_session_progress: null });
-      }
+    if (confirm("发现未完成的学习会话，是否继续？")) {
+      await startStudySession();
+    } else {
+      await userStore.updateUserProfile({ current_session_ids: null, current_session_progress: null });
     }
   }
   try {
@@ -189,10 +187,11 @@ async function startStudySession() {
     // 继续未完成的学习会话
     const sessionIds = userStore.profile?.current_session_ids || [];
     if (sessionIds.length > 0) {
-        studyStore.currentSessionIds = sessionIds;
+        // 使用 startSession 方法来正确初始化学习会话
+        await studyStore.startSession(sessionIds);
         // 恢复学习进度
         if (userStore.profile?.current_session_progress) {
-            studyStore.currentProgress = userStore.profile.current_session_progress;
+            studyStore.currentSentenceIndex = userStore.profile.current_session_progress;
         }
         router.push({ name: 'studySession' });
     }
@@ -212,7 +211,7 @@ async function startStudySession() {
         <button @click="isSearchMode = false" class="cancel-btn">取消</button>
       </div>
       <div class="sentence-list">
-        <div v-if="searchedSentences.length > 0">
+        <div v-if="searchedSentences && searchedSentences.length > 0">
           <div v-for="sentence in searchedSentences" :key="sentence.id"
                @click="toggleSentenceSelection(sentence.id)"
                class="sentence-item"
@@ -265,7 +264,7 @@ async function startStudySession() {
         <div class="action-section">
           <div class="setting-row">
             <label>句子数量</label>
-            <input type="number" v-model="selectionCount" min="1" :max="filteredSentences.length" class="count-input">
+            <input type="number" v-model="selectionCount" min="1" :max="filteredSentences?.length || 0" class="count-input">
           </div>
           <div class="setting-row">
             <label>Selección Aleatoria</label>
