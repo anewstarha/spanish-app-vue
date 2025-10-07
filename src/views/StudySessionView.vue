@@ -6,7 +6,7 @@ import { useUserStore } from '@/stores/userStore'
 import { useRouter } from 'vue-router'
 import * as speechService from '@/services/speechService'
 import AiExplanationModal from '@/components/AiExplanationModal.vue'
-import { getCoreWordsFromSentence, linkifySpanishWords } from '@/utils/textUtils'
+import { getCoreWordsFromSentence } from '@/utils/textUtils'
 import {
   PlayCircleIcon,
   SpeakerWaveIcon,
@@ -55,10 +55,46 @@ const currentTestComponent = computed(() => {
   }
   return null
 })
-const currentSentenceWords = computed(() => {
-  if (!store.currentSentence || store.allWords.length === 0) return []
-  const wordsInSentence = new Set(getCoreWordsFromSentence(store.currentSentence.spanish_text))
-  return store.allWords.filter((wordObj) => wordsInSentence.has(wordObj.spanish_word.toLowerCase()))
+// 生成带高亮单词的句子HTML
+const highlightedSentence = computed(() => {
+  if (!store.currentSentence || !store.allWords?.length) {
+    return store.currentSentence?.spanish_text || ''
+  }
+
+  const coreWords = getCoreWordsFromSentence(store.currentSentence.spanish_text)
+  const sentenceWords = store.allWords.filter(word =>
+    coreWords.some(cw => cw.toLowerCase() === word.spanish_word.toLowerCase())
+  )
+
+  let highlightedText = store.currentSentence.spanish_text
+
+  // 按单词长度降序排序，避免短词被长词包含的问题
+  sentenceWords.sort((a, b) => b.spanish_word.length - a.spanish_word.length)
+
+  sentenceWords.forEach(word => {
+    const regex = new RegExp(`\\b${word.spanish_word}\\b`, 'gi')
+    highlightedText = highlightedText.replace(regex, (match) =>
+      `<span class="highlighted-word" data-word-id="${word.id}" data-word="${word.spanish_word}" data-translation="${word.chinese_translation}">${match}</span>`
+    )
+  })
+
+  return highlightedText
+})
+
+// 当前句子中的单词映射，用于点击处理
+const sentenceWordsMap = computed(() => {
+  if (!store.currentSentence || !store.allWords?.length) return new Map()
+
+  const coreWords = getCoreWordsFromSentence(store.currentSentence.spanish_text)
+  const sentenceWords = store.allWords.filter(word =>
+    coreWords.some(cw => cw.toLowerCase() === word.spanish_word.toLowerCase())
+  )
+
+  const map = new Map()
+  sentenceWords.forEach(word => {
+    map.set(word.id, word)
+  })
+  return map
 })
 watch(
   () => store.currentSentence,
@@ -100,6 +136,57 @@ function handlePlay(type) {
     speechService.speak(text, options)
   }
 }
+// 处理句子中高亮单词点击 - 仅发声
+function handleWordClick(event) {
+  const span = event.target.closest('.highlighted-word')
+  if (!span) return
+
+  const wordText = span.dataset.word
+  if (!wordText) return
+
+  // 仅播放发音
+  speechService.speak(wordText)
+}
+
+// 处理AI解释内容，高亮句子中出现的单词
+const highlightWordsInAiContent = computed(() => {
+  return (text) => {
+    if (!text || !store.currentSentence || !store.allWords?.length) return text
+
+    const coreWords = getCoreWordsFromSentence(store.currentSentence.spanish_text)
+    const sentenceWords = store.allWords.filter(word =>
+      coreWords.some(cw => cw.toLowerCase() === word.spanish_word.toLowerCase())
+    )
+
+    let highlightedText = text
+
+    // 按单词长度降序排序，避免短词被长词包含
+    sentenceWords.sort((a, b) => b.spanish_word.length - a.spanish_word.length)
+
+    sentenceWords.forEach(word => {
+      const regex = new RegExp(`\\b${word.spanish_word}\\b`, 'gi')
+      highlightedText = highlightedText.replace(regex, (match) =>
+        `<span class="ai-word-pill" data-word-id="${word.id}" data-word="${word.spanish_word}">${match}</span>`
+      )
+    })
+
+    return highlightedText
+  }
+})
+
+// 处理AI解释中单词点击 - 显示单词解释
+function handleAiWordClick(event) {
+  const span = event.target.closest('.ai-word-pill')
+  if (!span) return
+
+  const wordId = parseInt(span.dataset.wordId)
+  const word = sentenceWordsMap.value.get(wordId)
+
+  if (!word) return
+
+  showWordExplanation(word)
+}
+
 async function showWordExplanation(word) {
   selectedWord.value = word
   isModalVisible.value = true
@@ -238,38 +325,12 @@ function handleContentClick(event) {
         <div v-if="mode === 'studying'">
           <div class="study-card">
             <div class="card-content">
-              <p class="spanish-text">{{ store.currentSentence.spanish_text }}</p>
+              <p class="spanish-text" @click="handleWordClick" v-html="highlightedSentence"></p>
               <p class="chinese-text">{{ store.currentSentence.chinese_translation }}</p>
             </div>
           </div>
           <div class="collapsible-area">
-            <details class="collapsible-item">
-              <summary>词汇列表 ({{ currentSentenceWords.length }})</summary>
-              <div class="collapsible-content">
-                <ul v-if="currentSentenceWords.length > 0" class="words-list">
-                  <li
-                    v-for="word in currentSentenceWords"
-                    :key="word.spanish_word"
-                    class="word-item"
-                  >
-                    <div class="word-details" @click="showWordExplanation(word)">
-                      <span class="word-spanish">{{ word.spanish_word }}</span>
-                      <span class="word-chinese">{{ word.chinese_translation }}</span>
-                    </div>
-                    <div class="word-actions">
-                      <button
-                        @click="speechService.speak(word.spanish_word)"
-                        class="icon-btn-small"
-                        title="朗读"
-                      >
-                        <SpeakerWaveIcon />
-                      </button>
-                    </div>
-                  </li>
-                </ul>
-                <p v-else class="empty-list">此句子中没有高频词汇。</p>
-              </div>
-            </details>
+            <!-- 词汇列表已移除，改为句子内高亮显示 -->
             <details class="collapsible-item">
               <summary>AI 解释</summary>
               <div class="collapsible-content" @click="handleContentClick">
@@ -279,11 +340,12 @@ function handleContentClick(event) {
                     typeof store.currentSentence.ai_notes === 'object'
                   "
                   class="ai-notes-container"
+                  @click="handleAiWordClick"
                 >
                   <div class="ai-section" v-if="store.currentSentence.ai_notes.grammar_analysis">
                     <h4 class="ai-section-title">语法解析</h4>
                     <p
-                      v-html="linkifySpanishWords(store.currentSentence.ai_notes.grammar_analysis)"
+                      v-html="highlightWordsInAiContent(store.currentSentence.ai_notes.grammar_analysis)"
                     ></p>
                   </div>
 
@@ -293,9 +355,7 @@ function handleContentClick(event) {
                   >
                     <h4 class="ai-section-title">翻译解析</h4>
                     <p
-                      v-html="
-                        linkifySpanishWords(store.currentSentence.ai_notes.translation_analysis)
-                      "
+                      v-html="highlightWordsInAiContent(store.currentSentence.ai_notes.translation_analysis)"
                     ></p>
                   </div>
 
@@ -307,11 +367,7 @@ function handleContentClick(event) {
                     >
                       <p
                         class="example-spanish"
-                        v-html="
-                          linkifySpanishWords(
-                            store.currentSentence.ai_notes.extended_sentences.spanish,
-                          )
-                        "
+                        v-html="highlightWordsInAiContent(store.currentSentence.ai_notes.extended_sentences.spanish)"
                       ></p>
                       <p class="example-chinese">
                         {{ store.currentSentence.ai_notes.extended_sentences.chinese }}
@@ -319,9 +375,7 @@ function handleContentClick(event) {
                     </div>
                     <p
                       v-else
-                      v-html="
-                        linkifySpanishWords(store.currentSentence.ai_notes.extended_sentences)
-                      "
+                      v-html="highlightWordsInAiContent(store.currentSentence.ai_notes.extended_sentences)"
                     ></p>
                   </div>
                 </div>
@@ -520,6 +574,53 @@ function handleContentClick(event) {
   color: #333;
   margin: 0 0 15px 0;
   line-height: 1.4;
+  cursor: text;
+}
+
+.highlighted-word {
+  background-color: #e3f2fd;
+  color: #1976d2;
+  padding: 2px 4px;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  position: relative;
+}
+
+.highlighted-word:hover {
+  background-color: #bbdefb;
+  color: #0d47a1;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.highlighted-word:active {
+  transform: translateY(0);
+  background-color: #90caf9;
+}
+
+.ai-word-pill {
+  background-color: #e8f5e8;
+  color: #2e7d2e;
+  padding: 3px 8px;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-weight: 500;
+  display: inline-block;
+  margin: 0 2px;
+}
+
+.ai-word-pill:hover {
+  background-color: #c8e6c9;
+  color: #1b5e20;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+.ai-word-pill:active {
+  transform: translateY(0);
+  background-color: #a5d6a7;
 }
 .chinese-text {
   font-size: 16px;
@@ -555,49 +656,7 @@ function handleContentClick(event) {
 .collapsible-content p {
   margin: 0;
 }
-.words-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: flex;
-  flex-direction: column;
-}
-.word-item {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 8px 0;
-  border-bottom: 1px solid #f0f0f0;
-}
-.word-item:last-child {
-  border-bottom: none;
-}
-.word-details {
-  cursor: pointer;
-  flex-grow: 1;
-}
-.word-spanish {
-  font-weight: 600;
-  color: #333;
-}
-.word-chinese {
-  color: #8a94a6;
-  font-size: 13px;
-  margin-left: 8px;
-}
-.word-actions {
-  display: flex;
-  align-items: center;
-}
-.icon-btn-small {
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: #a0a0a0;
-  padding: 5px;
-  width: 28px;
-  height: 28px;
-}
+/* 词汇列表样式已删除 - 改为句子内高亮显示 */
 .icon-btn-small:hover {
   color: #4a90e2;
 }
