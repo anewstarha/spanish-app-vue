@@ -49,20 +49,29 @@ function shuffleArray(array) {
   return array
 }
 const currentTestComponent = computed(() => {
-  if (mode.value === 'quizzing' && testOrder.value.length > 0) {
+  if (mode.value === 'quizzing' && 
+      Array.isArray(testOrder.value) && 
+      testOrder.value.length > 0 && 
+      currentTestIndex.value < testOrder.value.length) {
     const testKey = testOrder.value[currentTestIndex.value]
-    return TEST_COMPONENTS[testKey]
+    return TEST_COMPONENTS[testKey] || null
   }
   return null
 })
 // 生成带高亮单词的句子HTML
 const highlightedSentence = computed(() => {
-  if (!store.currentSentence || !store.allWords?.length) {
-    return store.currentSentence?.spanish_text || ''
+  if (!store.currentSentence?.spanish_text) {
+    return ''
+  }
+  
+  // 安全检查：确保 allWords 是一个数组
+  if (!Array.isArray(store.allWords) || store.allWords.length === 0) {
+    return store.currentSentence.spanish_text
   }
 
   const coreWords = getCoreWordsFromSentence(store.currentSentence.spanish_text)
   const sentenceWords = store.allWords.filter(word =>
+    word && word.spanish_word && 
     coreWords.some(cw => cw.toLowerCase() === word.spanish_word.toLowerCase())
   )
 
@@ -83,10 +92,16 @@ const highlightedSentence = computed(() => {
 
 // 当前句子中的单词映射，用于点击处理
 const sentenceWordsMap = computed(() => {
-  if (!store.currentSentence || !store.allWords?.length) return new Map()
+  if (!store.currentSentence?.spanish_text) return new Map()
+  
+  // 安全检查：确保 allWords 是一个数组
+  if (!Array.isArray(store.allWords) || store.allWords.length === 0) {
+    return new Map()
+  }
 
   const coreWords = getCoreWordsFromSentence(store.currentSentence.spanish_text)
   const sentenceWords = store.allWords.filter(word =>
+    word && word.spanish_word && 
     coreWords.some(cw => cw.toLowerCase() === word.spanish_word.toLowerCase())
   )
 
@@ -138,23 +153,31 @@ function handlePlay(type) {
 }
 // 处理句子中高亮单词点击 - 仅发声
 function handleWordClick(event) {
-  const span = event.target.closest('.highlighted-word')
-  if (!span) return
+  try {
+    const span = event.target.closest('.highlighted-word')
+    if (!span) return
 
-  const wordText = span.dataset.word
-  if (!wordText) return
+    const wordText = span.dataset.word
+    if (!wordText) return
 
-  // 仅播放发音
-  speechService.speak(wordText)
+    // 仅播放发音
+    speechService.speak(wordText)
+  } catch (error) {
+    console.error('处理单词点击时出错:', error)
+  }
 }
 
 // 处理AI解释内容，高亮句子中出现的单词
 const highlightWordsInAiContent = computed(() => {
   return (text) => {
-    if (!text || !store.currentSentence || !store.allWords?.length) return text
+    if (!text || !store.currentSentence?.spanish_text) return text
+    
+    // 安全检查：确保 allWords 是一个数组
+    if (!Array.isArray(store.allWords) || store.allWords.length === 0) return text
 
     const coreWords = getCoreWordsFromSentence(store.currentSentence.spanish_text)
     const sentenceWords = store.allWords.filter(word =>
+      word && word.spanish_word && 
       coreWords.some(cw => cw.toLowerCase() === word.spanish_word.toLowerCase())
     )
 
@@ -176,15 +199,20 @@ const highlightWordsInAiContent = computed(() => {
 
 // 处理AI解释中单词点击 - 显示单词解释
 function handleAiWordClick(event) {
-  const span = event.target.closest('.ai-word-pill')
-  if (!span) return
+  try {
+    const span = event.target.closest('.ai-word-pill')
+    if (!span) return
 
-  const wordId = parseInt(span.dataset.wordId)
-  const word = sentenceWordsMap.value.get(wordId)
+    const wordId = parseInt(span.dataset.wordId)
+    if (isNaN(wordId)) return
 
-  if (!word) return
+    const word = sentenceWordsMap.value.get(wordId)
+    if (!word) return
 
-  showWordExplanation(word)
+    showWordExplanation(word)
+  } catch (error) {
+    console.error('处理AI单词点击时出错:', error)
+  }
 }
 
 async function showWordExplanation(word) {
