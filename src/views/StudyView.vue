@@ -184,6 +184,19 @@ async function startCustomStudy() {
     await studyStore.startSession(idsToStudy);
     router.push({ name: 'studySession' });
 }
+
+async function startStudySession() {
+    // 继续未完成的学习会话
+    const sessionIds = userStore.profile?.current_session_ids || [];
+    if (sessionIds.length > 0) {
+        studyStore.currentSessionIds = sessionIds;
+        // 恢复学习进度
+        if (userStore.profile?.current_session_progress) {
+            studyStore.currentProgress = userStore.profile.current_session_progress;
+        }
+        router.push({ name: 'studySession' });
+    }
+}
 </script>
 
 <template>

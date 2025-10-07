@@ -2,7 +2,7 @@
 import { ref, watch } from 'vue';
 import { getCoreWordsFromSentence } from '@/utils/textUtils';
 import * as speechService from '@/services/speechService';
-import { SpeakerWaveIcon } from '@heroicons/vue/24/solid';
+
 
 const props = defineProps({
   sentence: { type: Object, required: true },

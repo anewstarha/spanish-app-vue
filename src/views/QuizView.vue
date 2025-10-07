@@ -188,7 +188,7 @@ async function goBack() {
         await userStore.updateUserProfile({ current_quiz_progress: currentQuestionIndex.value });
     }
 }
-function handleAnswered(result) {
+function handleAnswered() {
   isAnswered.value = true;
 }
 async function resetQuiz() {

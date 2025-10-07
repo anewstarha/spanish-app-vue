@@ -1,6 +1,6 @@
 <script setup>
 import { ref, watch, onMounted, onUnmounted } from 'vue';
-import { PlayCircleIcon, MicrophoneIcon } from '@heroicons/vue/24/solid';
+import { MicrophoneIcon } from '@heroicons/vue/24/solid';
 import * as speechService from '@/services/speechService';
 import { diffWords } from 'diff';
 import { supabase } from '@/supabase';
