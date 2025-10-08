@@ -88,18 +88,11 @@ const highlightedSentence = computed(() => {
 
   sentenceWords.forEach(word => {
     const regex = new RegExp(`\\b${word.spanish_word}\\b`, 'gi')
-    const beforeReplace = highlightedText
     highlightedText = highlightedText.replace(regex, (match) =>
       `<span class="sentence-highlight-word" data-word-id="${word.id}" data-word="${word.spanish_word}" data-translation="${word.chinese_translation}">${match}</span>`
     )
-    if (beforeReplace !== highlightedText) {
-      console.log('✅ 句子高亮成功:', word.spanish_word)
-    } else {
-      console.log('❌ 句子高亮失败:', word.spanish_word, '正则:', regex)
-    }
   })
 
-  console.log('🎯 最终句子HTML:', highlightedText)
   return highlightedText
 })// 当前句子中的单词映射，用于AI解释中的单词点击处理
 const sentenceWordsMap = computed(() => {
@@ -667,19 +660,21 @@ function handleContentClick(event) {
   cursor: text;
 }
 
-/* 句子中数据库单词的高亮样式 */
-.sentence-highlight-word {
-  background-color: #e8f5e8;
-  cursor: pointer;
-  padding: 1px 3px;
-  margin: 0 1px;
-  border-radius: 4px;
-  display: inline-block;
-  transition: background-color 0.2s ease;
+/* 句子中数据库单词的高亮样式 - 使用全局样式 */
+:global(.sentence-highlight-word) {
+  background-color: #e8f5e8 !important;
+  cursor: pointer !important;
+  padding: 1px 3px !important;
+  margin: 0 1px !important;
+  border-radius: 4px !important;
+  display: inline-block !important;
+  transition: background-color 0.2s ease !important;
+  border: 1px solid #c8e6c9 !important;
 }
 
-.sentence-highlight-word:hover {
-  background-color: #c8e6c9;
+:global(.sentence-highlight-word:hover) {
+  background-color: #c8e6c9 !important;
+  border-color: #a5d6a7 !important;
 }
 
 /* AI解释中数据库单词的样式 */
