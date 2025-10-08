@@ -660,21 +660,21 @@ function handleContentClick(event) {
   cursor: text;
 }
 
-/* 句子中数据库单词的高亮样式 - 使用全局样式 */
+/* 句子中数据库单词的高亮样式 - 优化尺寸和间距 */
 :global(.sentence-highlight-word) {
   background-color: #e8f5e8 !important;
   cursor: pointer !important;
-  padding: 1px 3px !important;
+  padding: 1px 2px !important;
   margin: 0 1px !important;
-  border-radius: 4px !important;
+  border-radius: 3px !important;
   display: inline-block !important;
   transition: background-color 0.2s ease !important;
-  border: 1px solid #c8e6c9 !important;
+  line-height: 1.2 !important;
+  vertical-align: baseline !important;
 }
 
 :global(.sentence-highlight-word:hover) {
   background-color: #c8e6c9 !important;
-  border-color: #a5d6a7 !important;
 }
 
 /* AI解释中数据库单词的样式 */
