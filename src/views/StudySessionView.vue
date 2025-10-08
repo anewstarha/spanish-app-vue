@@ -88,11 +88,18 @@ const highlightedSentence = computed(() => {
 
   sentenceWords.forEach(word => {
     const regex = new RegExp(`\\b${word.spanish_word}\\b`, 'gi')
+    const beforeReplace = highlightedText
     highlightedText = highlightedText.replace(regex, (match) =>
       `<span class="sentence-highlight-word" data-word-id="${word.id}" data-word="${word.spanish_word}" data-translation="${word.chinese_translation}">${match}</span>`
     )
+    if (beforeReplace !== highlightedText) {
+      console.log('✅ 句子高亮成功:', word.spanish_word)
+    } else {
+      console.log('❌ 句子高亮失败:', word.spanish_word, '正则:', regex)
+    }
   })
 
+  console.log('🎯 最终句子HTML:', highlightedText)
   return highlightedText
 })// 当前句子中的单词映射，用于AI解释中的单词点击处理
 const sentenceWordsMap = computed(() => {
