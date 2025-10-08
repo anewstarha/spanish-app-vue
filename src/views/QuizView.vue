@@ -357,6 +357,19 @@ function replayTestAudio() {
     height: 100%;
     background-color: #f2f2f7;
 }
+
+/* 响应式页面padding */
+@media (min-width: 431px) {
+    .page-container {
+        padding: 0 var(--spacing-lg);
+    }
+}
+
+@media (min-width: 769px) {
+    .page-container {
+        padding: 0 calc(var(--spacing-lg) * 2);
+    }
+}
 .filter-wrapper { height: 100%; display: flex; flex-direction: column; }
 .loading-indicator { margin: auto; }
 .content-wrapper {
@@ -368,9 +381,28 @@ function replayTestAudio() {
 .main-card {
     background: white; border-radius: var(--spacing-lg); padding: var(--spacing-lg);
     box-shadow: 0 8px 30px rgba(0,0,0,0.1);
-    width: 100%; max-width: 500px; margin: auto; box-sizing: border-box;
+    width: 100%; margin: auto; box-sizing: border-box;
     display: flex; flex-direction: column;
     gap: var(--spacing-lg);
+}
+
+/* 响应式最大宽度 - 根据屏幕大小调整 */
+@media (max-width: 430px) {
+    .main-card {
+        max-width: 100%;
+    }
+}
+
+@media (min-width: 431px) and (max-width: 768px) {
+    .main-card {
+        max-width: 600px;
+    }
+}
+
+@media (min-width: 769px) {
+    .main-card {
+        max-width: 700px;
+    }
 }
 .filter-section {
     display: flex;
