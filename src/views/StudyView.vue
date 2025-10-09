@@ -44,7 +44,7 @@ function watchUntil(condition) {
 const handleResize = () => {
     const oldHeight = screenHeight.value;
     screenHeight.value = window.innerHeight;
-    
+
     // 屏幕变大时重置展开状态
     if (oldHeight < 700 && screenHeight.value >= 700) {
         areTagsExpanded.value = false;
@@ -53,7 +53,7 @@ const handleResize = () => {
 
 onMounted(async () => {
   window.addEventListener('resize', handleResize);
-  
+
   await watchUntil(() => userStore.profile !== null);
   const unfinishedSession = userStore.profile?.current_session_ids;
   if (unfinishedSession && unfinishedSession.length > 0) {
@@ -128,12 +128,12 @@ const tagsWithCounts = computed(() => {
 
 const visibleTags = computed(() => {
     const isLargeScreen = screenHeight.value >= 700;
-    
+
     if (isLargeScreen) {
         // 大屏幕：显示所有标签
         return tagsWithCounts.value;
     }
-    
+
     // 小屏幕：根据展开状态决定
     if(areTagsExpanded.value) return tagsWithCounts.value;
     return tagsWithCounts.value.slice(0, 15);
@@ -141,12 +141,12 @@ const visibleTags = computed(() => {
 
 const showExpandButton = computed(() => {
     const isLargeScreen = screenHeight.value >= 700;
-    
+
     if (isLargeScreen) {
         // 大屏幕：不显示展开按钮
         return false;
     }
-    
+
     // 小屏幕：根据标签数量和展开状态决定
     return !areTagsExpanded.value && tagsWithCounts.value.length > 15;
 });
@@ -300,12 +300,12 @@ async function handleReselect() {
           </div>
         </div>
 
-        <div class="tags-section" :class="{ 
+        <div class="tags-section" :class="{
           'small-screen': screenHeight < 700,
-          'large-screen': screenHeight >= 700 
+          'large-screen': screenHeight >= 700
         }">
           <label class="section-title">
-            标签 
+            标签
             <span style="font-size: 12px; color: #999; font-weight: normal;">
               ({{ screenHeight >= 700 ? '大屏幕' : '小屏幕' }}: {{ visibleTags.length }}/{{ tagsWithCounts.length }})
             </span>
@@ -386,10 +386,10 @@ async function handleReselect() {
   font-size: 14px;
 }
 .pill-switch.large button { padding: 8px 16px; font-size: 14px; }
-.tags-section { 
-  display: flex; 
-  flex-direction: column; 
-  gap: 10px; 
+.tags-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
 }
 
 /* 大屏幕优化：增加间距 */
