@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, watch, nextTick } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
 import * as dataService from '@/services/dataService';
 import { useStudyStore } from '@/stores/studyStore';
 import { useUserStore } from '@/stores/userStore';
@@ -19,6 +19,7 @@ const filters = ref({
   tags: [],
 });
 const areTagsExpanded = ref(false);
+const screenHeight = ref(window.innerHeight);
 
 const selectionCount = ref(10);
 const isRandomSelection = ref(false);
@@ -39,7 +40,20 @@ function watchUntil(condition) {
   });
 }
 
+// 监听窗口大小变化
+const handleResize = () => {
+    const oldHeight = screenHeight.value;
+    screenHeight.value = window.innerHeight;
+    
+    // 屏幕变大时重置展开状态
+    if (oldHeight < 700 && screenHeight.value >= 700) {
+        areTagsExpanded.value = false;
+    }
+};
+
 onMounted(async () => {
+  window.addEventListener('resize', handleResize);
+  
   await watchUntil(() => userStore.profile !== null);
   const unfinishedSession = userStore.profile?.current_session_ids;
   if (unfinishedSession && unfinishedSession.length > 0) {
@@ -54,6 +68,10 @@ onMounted(async () => {
   } finally {
     isLoading.value = false;
   }
+});
+
+onUnmounted(() => {
+    window.removeEventListener('resize', handleResize);
 });
 
 const filteredSentences = computed(() => {
@@ -109,11 +127,27 @@ const tagsWithCounts = computed(() => {
 });
 
 const visibleTags = computed(() => {
+    const isLargeScreen = screenHeight.value >= 700;
+    
+    if (isLargeScreen) {
+        // 大屏幕：显示所有标签
+        return tagsWithCounts.value;
+    }
+    
+    // 小屏幕：根据展开状态决定
     if(areTagsExpanded.value) return tagsWithCounts.value;
     return tagsWithCounts.value.slice(0, 15);
 });
 
 const showExpandButton = computed(() => {
+    const isLargeScreen = screenHeight.value >= 700;
+    
+    if (isLargeScreen) {
+        // 大屏幕：不显示展开按钮
+        return false;
+    }
+    
+    // 小屏幕：根据标签数量和展开状态决定
     return !areTagsExpanded.value && tagsWithCounts.value.length > 15;
 });
 
@@ -266,8 +300,16 @@ async function handleReselect() {
           </div>
         </div>
 
-        <div class="tags-section">
-          <label class="section-title">标签</label>
+        <div class="tags-section" :class="{ 
+          'small-screen': screenHeight < 700,
+          'large-screen': screenHeight >= 700 
+        }">
+          <label class="section-title">
+            标签 
+            <span style="font-size: 12px; color: #999; font-weight: normal;">
+              ({{ screenHeight >= 700 ? '大屏幕' : '小屏幕' }}: {{ visibleTags.length }}/{{ tagsWithCounts.length }})
+            </span>
+          </label>
           <div class="tag-list">
             <button v-for="tag in visibleTags" :key="tag.name" @click="toggleTag(tag.name)" class="tag large"
                     :class="{ 'active': (tag.name === '全部' && filters.tags.length === 0) || filters.tags.includes(tag.name) }">
@@ -344,13 +386,31 @@ async function handleReselect() {
   font-size: 14px;
 }
 .pill-switch.large button { padding: 8px 16px; font-size: 14px; }
-.tags-section { display: flex; flex-direction: column; gap: 10px; }
+.tags-section { 
+  display: flex; 
+  flex-direction: column; 
+  gap: 10px; 
+}
+
+/* 大屏幕优化：增加间距 */
+.tags-section.large-screen {
+  gap: 15px;
+}
+
+.tags-section.large-screen .tag-list {
+  gap: 12px;
+}
 .section-title {
   font-weight: 600;
   color: var(--primary-text);
   font-size: 14px;
   text-align: left;
   width: 100%;
+}
+
+/* 大屏幕优化：增大标题字体 */
+.tags-section.large-screen .section-title {
+  font-size: 16px;
 }
 .tag-list {
   display: flex;

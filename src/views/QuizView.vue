@@ -1,5 +1,5 @@
 <script setup>
-import { ref, computed, onMounted, watch, nextTick } from 'vue';
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue';
 import * as dataService from '@/services/dataService';
 import { useUserStore } from '@/stores/userStore';
 import { useRouter } from 'vue-router';
@@ -130,13 +130,47 @@ const currentTestComponent = computed(() => {
 });
 const showExpandButton = ref(false);
 const tagListRef = ref(null);
-watch(tagsWithCounts, () => {
+const screenHeight = ref(window.innerHeight);
+
+// 监听窗口大小变化
+const handleResize = () => {
+    screenHeight.value = window.innerHeight;
+    checkExpandButton();
+};
+
+// 检查是否需要显示展开按钮
+const checkExpandButton = () => {
     nextTick(() => {
-        if (tagListRef.value) {
-            showExpandButton.value = tagListRef.value.scrollHeight > tagListRef.value.clientHeight;
+        const isSmallScreen = screenHeight.value < 700;
+
+        if (!isSmallScreen) {
+            // 大屏幕：隐藏展开按钮，重置展开状态
+            showExpandButton.value = false;
+            areTagsExpanded.value = false;
+            return;
+        }
+
+        // 小屏幕：检查是否需要展开按钮
+        if (tagListRef.value && tagsWithCounts.value.length > 6) {
+            showExpandButton.value = true;
+        } else {
+            showExpandButton.value = false;
         }
     });
-}, { deep: true, immediate: true });
+};
+
+watch(tagsWithCounts, checkExpandButton, { deep: true, immediate: true });
+
+watch(tagsWithCounts, checkExpandButton, { deep: true, immediate: true });
+
+onMounted(() => {
+    window.addEventListener('resize', handleResize);
+    checkExpandButton();
+});
+
+onUnmounted(() => {
+    window.removeEventListener('resize', handleResize);
+});
 function collapseTags() {
     areTagsExpanded.value = false;
     if (contentWrapperRef.value) {
@@ -263,7 +297,7 @@ function replayTestAudio() {
       </div>
     </div>
 
-    <div class="page-container" :class="{ 'is-expanded': areTagsExpanded }">
+    <div class="page-container">
         <div v-if="pageState === 'filtering'" class="filter-wrapper">
             <AppHeader />
             <div v-if="isLoading" class="loading-indicator">正在加载...</div>
@@ -287,8 +321,19 @@ function replayTestAudio() {
                             </div>
                         </div>
                     </div>
-                    <div class="tags-section">
-                        <label class="section-title">标签</label>
+                    <div class="tags-section" :class="{
+                        'is-expanded': areTagsExpanded,
+                        'small-screen': screenHeight < 700,
+                        'large-screen': screenHeight >= 700
+                    }">
+                        <label class="section-title">
+                            标签
+                            <span style="font-size: 12px; color: #999; font-weight: normal;">
+                                (屏幕高度: {{ screenHeight }}px,
+                                {{ screenHeight < 700 ? '小屏幕' : '大屏幕' }},
+                                展开按钮: {{ showExpandButton ? '显示' : '隐藏' }})
+                            </span>
+                        </label>
                         <div class="tag-list" ref="tagListRef">
                             <button v-for="tag in tagsWithCounts" :key="tag.name" @click="toggleTag(tag.name)" class="tag"
                                     :class="{ 'active': (tag.name === '全部' && filters.tags.length === 0) || filters.tags.includes(tag.name) }">
@@ -376,6 +421,7 @@ function replayTestAudio() {
   flex-grow: 1;
   display: flex;
   min-height: 0;
+  height: 100%;
   overflow: hidden;
 }
 .main-card {
@@ -384,6 +430,18 @@ function replayTestAudio() {
     width: 100%; margin: auto; box-sizing: border-box;
     display: flex; flex-direction: column;
     gap: var(--spacing-lg);
+    height: 100%;
+    min-height: 0;
+    overflow: hidden; /* 确保内容不会溢出卡片边界 */
+}
+
+/* 小屏幕展开状态：允许卡片内容滚动 */
+@media (max-height: 699px) {
+  .is-expanded .main-card {
+    overflow-y: auto;
+    /* 为底部导航留出空间 */
+    padding-bottom: calc(var(--spacing-lg) + 80px);
+  }
 }
 
 /* 响应式最大宽度 - 根据屏幕大小调整 */
@@ -408,6 +466,9 @@ function replayTestAudio() {
     display: flex;
     flex-direction: column;
     gap: var(--spacing-md);
+    flex-grow: 1;
+    min-height: 0;
+    overflow: hidden; /* 防止内容溢出到父容器外 */
 }
 .filter-group {
     display: flex;
@@ -434,16 +495,10 @@ function replayTestAudio() {
     min-height: 0;
 }
 
-/* Enhanced tags section for tall screens */
+/* 高屏幕优化：适当增加间距 */
 @media (min-height: 800px) {
   .tags-section {
     gap: var(--spacing-md);
-  }
-}
-
-@media (min-height: 900px) {
-  .tags-section {
-    gap: var(--spacing-lg);
   }
 }
 .section-title {
@@ -461,31 +516,47 @@ function replayTestAudio() {
   }
 }
 .tag-list {
-  display: flex; flex-wrap: wrap; gap: var(--spacing-sm);
-  max-height: 7.5rem;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--spacing-sm);
+  transition: max-height 0.3s ease;
+}
+
+/* 默认状态：小屏幕限制高度 */
+.tags-section.small-screen .tag-list {
+  max-height: 6rem;
   overflow-y: auto;
 }
 
-/* Increase tag list height on tall screens */
-@media (min-height: 800px) {
-  .tag-list {
-    max-height: 10rem;
-  }
+/* 大屏幕：完全展开 */
+.tags-section.large-screen .tag-list {
+  max-height: none;
+  overflow: visible;
 }
 
-@media (min-height: 900px) {
-  .tag-list {
-    max-height: 12rem;
-  }
+/* 小屏幕手动展开状态 */
+.tags-section.small-screen.is-expanded .tag-list {
+  max-height: 60vh;
+  overflow-y: auto;
 }
-.is-expanded .tag-list {
-    max-height: none;
-    overflow: visible;
+
+/* 展开按钮控制 */
+.tags-section.large-screen .expand-btn {
+  display: none;
+}
+
+.tags-section.small-screen .expand-btn {
+  display: block;
+}
+/* 小屏幕展开时让tags-section占据更多空间 */
+.tags-section.small-screen.is-expanded {
+  flex-grow: 2;
 }
 .expand-btn {
     border: none; background: none; color: var(--accent-blue);
     font-weight: 600; cursor: pointer; text-align: left;
     padding: var(--spacing-xs) 0;
+    display: none; /* 默认隐藏 */
 }
 
 /* Enhanced expand button for tall screens */
@@ -500,7 +571,7 @@ function replayTestAudio() {
     padding-top: var(--spacing-lg);
 }
 
-/* Enhanced spacing and padding for tall screens */
+/* 高屏幕优化：适当增加间距 */
 @media (min-height: 800px) {
   .content-wrapper {
     padding: var(--spacing-xl);
@@ -512,16 +583,6 @@ function replayTestAudio() {
 
   .action-section {
     padding-top: var(--spacing-xl);
-  }
-}
-
-@media (min-height: 900px) {
-  .content-wrapper {
-    padding: calc(var(--spacing-xl) * 1.5);
-  }
-
-  .filter-section {
-    gap: calc(var(--spacing-lg) * 1.2);
   }
 }
 .quiz-container { display: flex; flex-direction: column; height: 100%; background-color: #f2f2f7; }
