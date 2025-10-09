@@ -433,11 +433,50 @@ function replayTestAudio() {
     flex-grow: 1;
     min-height: 0;
 }
-.section-title { font-weight: 600; color: var(--primary-text); font-size: var(--font-size-md); flex-shrink: 0; }
+
+/* Enhanced tags section for tall screens */
+@media (min-height: 800px) {
+  .tags-section {
+    gap: var(--spacing-md);
+  }
+}
+
+@media (min-height: 900px) {
+  .tags-section {
+    gap: var(--spacing-lg);
+  }
+}
+.section-title {
+    font-weight: 600;
+    color: var(--primary-text);
+    font-size: var(--font-size-md);
+    flex-shrink: 0;
+}
+
+/* Enhanced section titles for tall screens */
+@media (min-height: 800px) {
+  .section-title {
+    font-size: var(--font-size-lg);
+    margin-bottom: var(--spacing-xs);
+  }
+}
 .tag-list {
   display: flex; flex-wrap: wrap; gap: var(--spacing-sm);
   max-height: 7.5rem;
   overflow-y: auto;
+}
+
+/* Increase tag list height on tall screens */
+@media (min-height: 800px) {
+  .tag-list {
+    max-height: 10rem;
+  }
+}
+
+@media (min-height: 900px) {
+  .tag-list {
+    max-height: 12rem;
+  }
 }
 .is-expanded .tag-list {
     max-height: none;
@@ -448,9 +487,42 @@ function replayTestAudio() {
     font-weight: 600; cursor: pointer; text-align: left;
     padding: var(--spacing-xs) 0;
 }
+
+/* Enhanced expand button for tall screens */
+@media (min-height: 800px) {
+  .expand-btn {
+    padding: var(--spacing-sm) 0;
+    font-size: var(--font-size-base);
+  }
+}
 .action-section {
     border-top: 1px solid #f0f0f0;
     padding-top: var(--spacing-lg);
+}
+
+/* Enhanced spacing and padding for tall screens */
+@media (min-height: 800px) {
+  .content-wrapper {
+    padding: var(--spacing-xl);
+  }
+
+  .filter-section {
+    gap: var(--spacing-lg);
+  }
+
+  .action-section {
+    padding-top: var(--spacing-xl);
+  }
+}
+
+@media (min-height: 900px) {
+  .content-wrapper {
+    padding: calc(var(--spacing-xl) * 1.5);
+  }
+
+  .filter-section {
+    gap: calc(var(--spacing-lg) * 1.2);
+  }
 }
 .quiz-container { display: flex; flex-direction: column; height: 100%; background-color: #f2f2f7; }
 .quiz-header { text-align: center; padding: 10px; padding-top: calc(10px + env(safe-area-inset-top)); background-color: white; border-bottom: 1px solid #e5e5e5; flex-shrink: 0; }
