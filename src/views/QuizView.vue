@@ -334,9 +334,6 @@ function replayTestAudio() {
                     }">
                         <label class="section-title">
                             标签
-                            <span style="font-size: 12px; color: #999; font-weight: normal;">
-                                ({{ showExpandButton ? '可展开' : '完全显示' }}: {{ tagsWithCounts.length }}个标签)
-                            </span>
                         </label>
                         <div class="tag-list" ref="tagListRef">
                             <button v-for="tag in tagsWithCounts" :key="tag.name" @click="toggleTag(tag.name)" class="tag"
@@ -401,7 +398,7 @@ function replayTestAudio() {
 /* Estilos existentes de QuizView... */
 .page-container {
     padding: 0 var(--spacing-md);
-    padding-bottom: 20px; /* 只留20px给手指操作空间 */
+    padding-bottom: 10px; /* 减少到10px，让按钮更靠近底部导航 */
     display: flex;
     flex-direction: column;
     height: 100%; /* 占满可用空间 */
@@ -580,7 +577,7 @@ function replayTestAudio() {
     border-top: 1px solid #f0f0f0;
     padding-top: var(--spacing-lg);
     flex-shrink: 0; /* 防止被压缩 */
-    /* 移除margin-top: auto，让它自然紧贴在filter-section下方 */
+    margin-top: auto; /* 推到main-card底部，靠近底部导航 */
 }
 
 /* 高屏幕优化：适当增加间距 */

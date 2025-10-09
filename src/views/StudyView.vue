@@ -460,10 +460,6 @@ async function handleReselect() {
         }">
           <label class="section-title">
             标签
-            <button @click="checkExpandButton" style="margin-left: 10px; padding: 2px 6px; font-size: 10px; background: #007acc; color: white; border: none; border-radius: 3px; cursor: pointer;">🔄调试</button>
-            <span style="font-size: 12px; color: #999; font-weight: normal;">
-              <br>策略: {{ displayStrategy }}, 按钮: {{ showExpandButton }}, 标签: {{ tagsWithCounts.length }}
-            </span>
           </label>
           <div
             ref="tagListRef"
@@ -527,7 +523,7 @@ async function handleReselect() {
   flex-direction: column;
   height: 100%;
   background-color: #f2f2f7;
-  padding: 0 16px;
+  padding: 0 20px; /* 增加左右边距 */
   box-sizing: border-box;
 }
 .default-view {
@@ -547,7 +543,8 @@ async function handleReselect() {
   gap: 25px;
   width: 100%;
   max-width: 500px;
-  margin: 20px 0;
+  margin: 20px auto; /* 水平居中 */
+  box-sizing: border-box;
 }
 .loading-indicator { margin: auto; }
 .filter-section {
