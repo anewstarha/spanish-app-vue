@@ -2,12 +2,8 @@
 import { RouterView } from 'vue-router'
 import BottomNav from './components/BottomNav.vue'
 import { useUserStore } from './stores/userStore'
-// 不再需要 onMounted 和 supabase 了
 
 const store = useUserStore()
-
-// onMounted 钩子里的 onAuthStateChange 监听器已被移除
-// 因为这个逻辑已经前置到了 main.js 中
 </script>
 
 <template>
@@ -29,6 +25,15 @@ const store = useUserStore()
 </template>
 
 <style scoped>
+/* 移动端容器样式 */
+.mobile-container {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  width: 100%;
+  overflow: hidden;
+}
+
 /* 您原有的样式，保持不变 */
 .main-content {
   flex-grow: 1;

@@ -6,7 +6,7 @@ import { useUserStore } from '@/stores/userStore'
 import { useRouter } from 'vue-router'
 import * as speechService from '@/services/speechService'
 import AiExplanationModal from '@/components/AiExplanationModal.vue'
-import { getCoreWordsFromSentence, linkifySpanishWords } from '@/utils/textUtils'
+import { getCoreWordsFromSentence } from '@/utils/textUtils'
 import {
   PlayCircleIcon,
   SpeakerWaveIcon,
@@ -634,7 +634,7 @@ function handleContentClick(event) {
   flex-grow: 1;
   overflow-y: auto;
   padding: 20px 15px;
-  padding-bottom: 100px;
+  padding-bottom: 140px; /* 为页面导航(60px) + 全局导航(60px) + 间距(20px)预留空间 */
 }
 .loading-indicator {
   text-align: center;
@@ -762,12 +762,13 @@ function handleContentClick(event) {
 .session-footer {
   display: flex;
   justify-content: space-around;
-  align-items: stretch;
-  padding: 5px 0;
-  padding-bottom: calc(5px + env(safe-area-inset-bottom));
+  align-items: center; /* 统一为center */
+  padding: 10px 0; /* 统一padding */
+  padding-bottom: calc(10px + env(safe-area-inset-bottom));
   background-color: #ffffff;
-  border-top: 1px solid #e5e5e5;
-  box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.05);
+  border-top: 1px solid #eee; /* 统一边框色 */
+  min-height: 60px; /* 统一最小高度 */
+  flex-shrink: 0;
 }
 .footer-nav-item {
   display: flex;
@@ -775,25 +776,25 @@ function handleContentClick(event) {
   align-items: center;
   justify-content: center;
   flex: 1;
-  padding: 5px 0;
   cursor: pointer;
-  color: #8a94a6;
-  transition: color 0.2s ease;
+  color: #8A94A6; /* 统一颜色 */
+  transition: color 0.2s;
+  text-decoration: none;
 }
 .footer-nav-item:hover {
-  color: #4a90e2;
+  color: #4A90E2; /* 统一hover颜色 */
 }
 .footer-nav-item.disabled {
   color: #e0e0e0;
   pointer-events: none;
 }
 .footer-nav-item.active {
-  color: #4a90e2;
+  color: #4A90E2; /* 统一active颜色 */
 }
 .footer-icon {
   width: 24px;
   height: 24px;
-  margin-bottom: 2px;
+  margin-bottom: 4px; /* 统一间距 */
 }
 .footer-label {
   font-size: 11px;

@@ -138,23 +138,30 @@ const handleResize = () => {
     checkExpandButton();
 };
 
-// 检查是否需要显示展开按钮
+// 精细的DOM测量逻辑 - 检查标签内容是否实际溢出
 const checkExpandButton = () => {
     nextTick(() => {
-        const isSmallScreen = screenHeight.value < 700;
-
-        if (!isSmallScreen) {
-            // 大屏幕：隐藏展开按钮，重置展开状态
+        if (!tagListRef.value) {
             showExpandButton.value = false;
-            areTagsExpanded.value = false;
             return;
         }
 
-        // 小屏幕：检查是否需要展开按钮
-        if (tagListRef.value && tagsWithCounts.value.length > 6) {
-            showExpandButton.value = true;
-        } else {
-            showExpandButton.value = false;
+        // 获取标签容器的实际尺寸
+        const containerRect = tagListRef.value.getBoundingClientRect();
+        const containerHeight = containerRect.height;
+        const scrollHeight = tagListRef.value.scrollHeight;
+
+        // 精确检测：当内容高度超过容器高度时显示展开按钮
+        const isOverflowing = scrollHeight > containerHeight + 5; // 5px 容错
+
+        // 额外检查：确保有足够的标签数量才启用展开功能
+        const hasEnoughTags = tagsWithCounts.value.length > 3;
+
+        showExpandButton.value = isOverflowing && hasEnoughTags;
+
+        // 如果内容不再溢出，自动收起展开状态
+        if (!isOverflowing && areTagsExpanded.value) {
+            areTagsExpanded.value = false;
         }
     });
 };
@@ -322,16 +329,13 @@ function replayTestAudio() {
                         </div>
                     </div>
                     <div class="tags-section" :class="{
-                        'is-expanded': areTagsExpanded,
-                        'small-screen': screenHeight < 700,
-                        'large-screen': screenHeight >= 700
+                        'has-overflow': showExpandButton,
+                        'expanded': areTagsExpanded && showExpandButton
                     }">
                         <label class="section-title">
                             标签
                             <span style="font-size: 12px; color: #999; font-weight: normal;">
-                                (屏幕高度: {{ screenHeight }}px,
-                                {{ screenHeight < 700 ? '小屏幕' : '大屏幕' }},
-                                展开按钮: {{ showExpandButton ? '显示' : '隐藏' }})
+                                ({{ showExpandButton ? '可展开' : '完全显示' }}: {{ tagsWithCounts.length }}个标签)
                             </span>
                         </label>
                         <div class="tag-list" ref="tagListRef">
@@ -397,10 +401,12 @@ function replayTestAudio() {
 /* Estilos existentes de QuizView... */
 .page-container {
     padding: 0 var(--spacing-md);
+    padding-bottom: 20px; /* 只留20px给手指操作空间 */
     display: flex;
     flex-direction: column;
-    height: 100%;
+    height: 100%; /* 占满可用空间 */
     background-color: #f2f2f7;
+    box-sizing: border-box;
 }
 
 /* 响应式页面padding */
@@ -421,18 +427,23 @@ function replayTestAudio() {
   flex-grow: 1;
   display: flex;
   min-height: 0;
-  height: 100%;
-  overflow: hidden;
+  /* 移除固定高度，让内容自然流动 */
+  overflow: visible; /* 允许bottom padding显示 */
 }
 .main-card {
-    background: white; border-radius: var(--spacing-lg); padding: var(--spacing-lg);
+    background: white;
+    border-radius: var(--spacing-lg);
+    padding: var(--spacing-lg);
     box-shadow: 0 8px 30px rgba(0,0,0,0.1);
-    width: 100%; margin: auto; box-sizing: border-box;
-    display: flex; flex-direction: column;
+    width: 100%;
+    margin: auto;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
     gap: var(--spacing-lg);
-    height: 100%;
-    min-height: 0;
-    overflow: hidden; /* 确保内容不会溢出卡片边界 */
+    flex: 1; /* 占用剩余空间 */
+    min-height: 0; /* 允许内容收缩 */
+    overflow: hidden; /* 防止内容溢出 */
 }
 
 /* 小屏幕展开状态：允许卡片内容滚动 */
@@ -440,7 +451,7 @@ function replayTestAudio() {
   .is-expanded .main-card {
     overflow-y: auto;
     /* 为底部导航留出空间 */
-    padding-bottom: calc(var(--spacing-lg) + 80px);
+    padding-bottom: 100px !important;
   }
 }
 
@@ -466,9 +477,9 @@ function replayTestAudio() {
     display: flex;
     flex-direction: column;
     gap: var(--spacing-md);
-    flex-grow: 1;
+    flex: 1;
     min-height: 0;
-    overflow: hidden; /* 防止内容溢出到父容器外 */
+    overflow-y: auto; /* 允许滚动 */
 }
 .filter-group {
     display: flex;
@@ -523,34 +534,33 @@ function replayTestAudio() {
 }
 
 /* 默认状态：小屏幕限制高度 */
-.tags-section.small-screen .tag-list {
-  max-height: 6rem;
-  overflow-y: auto;
+/* 精细的内容响应样式 - 基于实际溢出状态 */
+.tag-list {
+  max-height: 240px; /* 默认限制高度 */
+  overflow: hidden;
+  transition: max-height 0.3s ease;
 }
 
-/* 大屏幕：完全展开 */
-.tags-section.large-screen .tag-list {
-  max-height: none;
-  overflow: visible;
-}
-
-/* 小屏幕手动展开状态 */
-.tags-section.small-screen.is-expanded .tag-list {
+/* 当内容溢出且展开时 */
+.tags-section.expanded .tag-list {
   max-height: 60vh;
   overflow-y: auto;
 }
 
-/* 展开按钮控制 */
-.tags-section.large-screen .expand-btn {
-  display: none;
+/* 当内容未溢出时，无需限制高度 */
+.tags-section:not(.has-overflow) .tag-list {
+  max-height: none;
+  overflow: visible;
 }
 
-.tags-section.small-screen .expand-btn {
-  display: block;
-}
-/* 小屏幕展开时让tags-section占据更多空间 */
-.tags-section.small-screen.is-expanded {
+/* 展开时让tags-section占据更多空间 */
+.tags-section.expanded {
   flex-grow: 2;
+}
+
+/* 当没有溢出时隐藏展开按钮 */
+.tags-section:not(.has-overflow) .expand-btn {
+  display: none;
 }
 .expand-btn {
     border: none; background: none; color: var(--accent-blue);
@@ -569,6 +579,8 @@ function replayTestAudio() {
 .action-section {
     border-top: 1px solid #f0f0f0;
     padding-top: var(--spacing-lg);
+    flex-shrink: 0; /* 防止被压缩 */
+    /* 移除margin-top: auto，让它自然紧贴在filter-section下方 */
 }
 
 /* 高屏幕优化：适当增加间距 */
@@ -584,17 +596,61 @@ function replayTestAudio() {
   .action-section {
     padding-top: var(--spacing-xl);
   }
+
+  /* 高屏幕设备：增加底部间距 */
+  .quiz-main {
+    padding-bottom: calc(var(--spacing-xl) + 140px); /* 更多空间给双层导航 */
+  }
+}
+
+/* 小屏幕设备：确保足够的底部间距 */
+@media (max-height: 600px) {
+  .quiz-main {
+    padding-bottom: calc(var(--spacing-lg) + 100px); /* 小屏幕也要为双层导航留空间 */
+  }
 }
 .quiz-container { display: flex; flex-direction: column; height: 100%; background-color: #f2f2f7; }
 .quiz-header { text-align: center; padding: 10px; padding-top: calc(10px + env(safe-area-inset-top)); background-color: white; border-bottom: 1px solid #e5e5e5; flex-shrink: 0; }
 .progress-text { font-weight: 600; font-size: var(--font-size-base); }
-.quiz-main { flex-grow: 1; padding: var(--spacing-lg) var(--spacing-md); overflow-y: auto; }
-.quiz-footer { display: flex; justify-content: space-around; align-items: stretch; background-color: white; border-top: 1px solid #e5e5e5; padding-bottom: env(safe-area-inset-bottom); flex-shrink: 0; }
-.footer-nav-item { display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; padding: 8px 0; cursor: pointer; color: #8A94A6; transition: color 0.2s; }
+.quiz-main {
+  flex-grow: 1;
+  padding: var(--spacing-lg) var(--spacing-md);
+  padding-bottom: calc(var(--spacing-lg) + 120px); /* 为页面导航(60px) + 全局导航(60px)预留空间 */
+  overflow-y: auto;
+}
+.quiz-footer {
+  display: flex;
+  justify-content: space-around;
+  align-items: center; /* 改为center，与BottomNav保持一致 */
+  background-color: white;
+  border-top: 1px solid #eee; /* 统一边框色 */
+  padding: 10px 0; /* 统一padding */
+  padding-bottom: calc(10px + env(safe-area-inset-bottom));
+  flex-shrink: 0;
+  min-height: 60px; /* 确保最小高度 */
+}
+.footer-nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  cursor: pointer;
+  color: #8A94A6;
+  transition: color 0.2s;
+  text-decoration: none;
+}
 .footer-nav-item.disabled { color: #e0e0e0; pointer-events: none; }
 .footer-nav-item:hover { color: #4A90E2; }
-.footer-icon { width: 28px; height: 28px; margin-bottom: 2px; }
-.footer-label { font-size: 11px; font-weight: 500; }
+.footer-icon {
+  width: 24px;
+  height: 24px;
+  margin-bottom: 4px; /* 与BottomNav保持一致 */
+}
+.footer-label {
+  font-size: 11px;
+  font-weight: 500;
+}
 .finished-container { display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; gap: var(--spacing-lg); padding: var(--spacing-lg); flex-grow: 1; }
 .secondary-button { background: none; border: none; color: var(--accent-blue); font-weight: 600; cursor: pointer; }
 .pill-switch { display: flex; background-color: #f0f2f5; border-radius: 8px; padding: var(--spacing-xs); }

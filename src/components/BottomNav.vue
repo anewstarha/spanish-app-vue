@@ -39,6 +39,8 @@ import {
   border-top: 1px solid #eee;
   padding: 10px 0;
   padding-bottom: calc(10px + env(safe-area-inset-bottom));
+  min-height: 60px; /* 确保与quiz-footer一致的最小高度 */
+  flex-shrink: 0;
 }
 
 .nav-item {

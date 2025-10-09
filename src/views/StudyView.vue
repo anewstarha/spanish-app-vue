@@ -40,19 +40,162 @@ function watchUntil(condition) {
   });
 }
 
+// 智能高度检测相关
+const showExpandButton = ref(false);
+const hasOverflow = ref(false); // 新增：明确跟踪是否溢出
+const displayStrategy = ref('normal-expand'); // 新增：当前显示策略
+const tagListRef = ref(null);
+const tagsSectionRef = ref(null); // 新增：测量整个标签区域
+const contentWrapperRef = ref(null);
+
 // 监听窗口大小变化
 const handleResize = () => {
     const oldHeight = screenHeight.value;
     screenHeight.value = window.innerHeight;
-
-    // 屏幕变大时重置展开状态
-    if (oldHeight < 700 && screenHeight.value >= 700) {
-        areTagsExpanded.value = false;
-    }
+    console.log('📐 [StudyView] 窗口大小变化:', {
+        oldHeight,
+        newHeight: screenHeight.value
+    });
+    checkExpandButton();
 };
 
-onMounted(async () => {
+// 两阶段精细检测逻辑 - 先强制限制再测量
+const checkExpandButton = () => {
+    console.log('🔍 [StudyView] checkExpandButton 被调用');
+    nextTick(() => {
+        if (!tagListRef.value) {
+            console.log('❌ [StudyView] tagListRef 不存在');
+            showExpandButton.value = false;
+            return;
+        }
+
+        console.log('🎬 [StudyView] 开始两阶段检测');
+
+        // 第一阶段：强制应用限制来测量原始内容
+        tagListRef.value.classList.add('force-limit');
+
+        // 给CSS应用时间
+        setTimeout(() => {
+            const containerRect = tagListRef.value.getBoundingClientRect();
+            const containerHeight = containerRect.height;
+            const scrollHeight = tagListRef.value.scrollHeight;
+            const computedStyle = window.getComputedStyle(tagListRef.value);
+
+            // 预估展开按钮的高度 (按钮 + margin)
+            const estimatedButtonHeight = 40; // 8px padding * 2 + 10px margin + 按钮高度
+
+            console.log('📏 [StudyView] 第一阶段测量结果:', {
+                containerHeight,
+                scrollHeight,
+                estimatedButtonHeight,
+                tagsCount: tagsWithCounts.value.length,
+                computedMaxHeight: computedStyle.maxHeight,
+                computedOverflow: computedStyle.overflow,
+                elementClasses: tagListRef.value.className
+            });
+
+            // 检测是否真的有溢出
+            const isOverflowing = scrollHeight > containerHeight + 5;
+            const hasEnoughTags = tagsWithCounts.value.length > 3;
+
+            // 检查可用空间 - 更智能的空间计算
+            let availableSpace = 200; // 默认值
+            let spaceCalculationMethod = 'default';
+
+            if (tagsSectionRef.value && contentWrapperRef.value) {
+                // 方法1: 计算父容器的剩余空间
+                const parentRect = contentWrapperRef.value.getBoundingClientRect();
+                const sectionRect = tagsSectionRef.value.getBoundingClientRect();
+                const sectionTop = sectionRect.top - parentRect.top;
+                const remainingSpace = parentRect.height - sectionTop;
+
+                availableSpace = Math.max(remainingSpace, 120); // 最小120px
+                spaceCalculationMethod = 'parent-remaining';
+            } else if (tagsSectionRef.value) {
+                // 方法2: 基于视口高度的估算
+                const viewportHeight = window.innerHeight;
+                const sectionRect = tagsSectionRef.value.getBoundingClientRect();
+                const sectionTopInViewport = sectionRect.top;
+                const remainingViewport = viewportHeight - sectionTopInViewport - 100; // 预留100px底部空间
+
+                availableSpace = Math.max(remainingViewport, 120);
+                spaceCalculationMethod = 'viewport-based';
+            }
+
+            const needsButton = isOverflowing && hasEnoughTags;
+            let finalStrategy = 'none';
+            let finalButtonShow = false;
+            let finalTagHeight = 80; // 默认折叠高度
+
+            // 智能降级策略
+            if (needsButton) {
+                if (availableSpace > (containerHeight + estimatedButtonHeight)) {
+                    // 策略1: 空间充足，正常显示展开按钮
+                    finalStrategy = 'normal-expand';
+                    finalButtonShow = true;
+                } else if (availableSpace > containerHeight + 25) {
+                    // 策略2: 空间紧张，显示紧凑按钮
+                    finalStrategy = 'compact-expand';
+                    finalButtonShow = true;
+                } else if (availableSpace > 60) {
+                    // 策略3: 空间非常紧张，进一步压缩标签高度
+                    finalTagHeight = Math.max(40, availableSpace - 30); // 预留30px给按钮
+                    finalStrategy = 'ultra-compact';
+                    finalButtonShow = true;
+                } else {
+                    // 策略4: 空间不足，隐藏按钮，但显示提示
+                    finalStrategy = 'no-space-hint';
+                    finalButtonShow = false;
+                }
+            }
+
+            console.log('✨ [StudyView] 智能降级策略:', {
+                isOverflowing,
+                hasEnoughTags,
+                availableSpace,
+                spaceCalculationMethod,
+                estimatedButtonHeight,
+                finalStrategy,
+                finalButtonShow,
+                finalTagHeight,
+                shouldShow: finalButtonShow
+            });
+
+            // 移除强制限制class
+            tagListRef.value.classList.remove('force-limit');
+
+            // 应用动态高度
+            if (finalStrategy === 'ultra-compact') {
+                tagListRef.value.style.maxHeight = `${finalTagHeight}px`;
+            } else {
+                tagListRef.value.style.maxHeight = ''; // 清除内联样式，使用CSS
+            }
+
+            // 更新状态
+            hasOverflow.value = isOverflowing;
+            showExpandButton.value = finalButtonShow;
+            displayStrategy.value = finalStrategy;
+
+            // 如果内容不再溢出，自动收起展开状态
+            if (!isOverflowing && areTagsExpanded.value) {
+                console.log('🔄 [StudyView] 内容不再溢出，自动收起');
+                areTagsExpanded.value = false;
+            }
+
+            console.log('🎯 [StudyView] 最终状态:', {
+                hasOverflow: hasOverflow.value,
+                showExpandButton: showExpandButton.value,
+                areTagsExpanded: areTagsExpanded.value
+            });
+        }, 10); // 10ms延迟确保CSS生效
+    });
+};onMounted(async () => {
+  console.log('🚀 [StudyView] onMounted 开始执行');
   window.addEventListener('resize', handleResize);
+
+  // 初始检测
+  console.log('🎬 [StudyView] 执行初始 checkExpandButton');
+  checkExpandButton();
 
   await watchUntil(() => userStore.profile !== null);
   const unfinishedSession = userStore.profile?.current_session_ids;
@@ -63,6 +206,15 @@ onMounted(async () => {
     const data = await dataService.getStudyData();
     allSentences.value = data.sentences;
     allTags.value = data.allTags;
+    console.log('📊 [StudyView] 数据加载完成:', {
+      sentencesCount: data.sentences?.length || 0,
+      tagsCount: data.allTags?.length || 0
+    });
+    // 数据加载完成后再次检测
+    setTimeout(() => {
+      console.log('🔄 [StudyView] 数据加载完成后重新检测');
+      checkExpandButton();
+    }, 100);
   } catch (error) {
     console.error('加载学习数据时出错:', error);
   } finally {
@@ -126,30 +278,31 @@ const tagsWithCounts = computed(() => {
   return tagList;
 });
 
+// 监听标签变化，重新检测展开按钮需要
+watch(tagsWithCounts, (newVal, oldVal) => {
+    console.log('👀 [StudyView] tagsWithCounts 变化:', {
+        newCount: newVal.length,
+        oldCount: oldVal?.length || 0,
+        tags: newVal.map(t => `${t.name}(${t.count})`)
+    });
+    checkExpandButton();
+}, { deep: true, immediate: true });
+
 const visibleTags = computed(() => {
-    const isLargeScreen = screenHeight.value >= 700;
-
-    if (isLargeScreen) {
-        // 大屏幕：显示所有标签
-        return tagsWithCounts.value;
-    }
-
-    // 小屏幕：根据展开状态决定
-    if(areTagsExpanded.value) return tagsWithCounts.value;
-    return tagsWithCounts.value.slice(0, 15);
+    // 精细逻辑：始终显示所有标签，由CSS和DOM测量控制溢出
+    return tagsWithCounts.value;
 });
 
-const showExpandButton = computed(() => {
-    const isLargeScreen = screenHeight.value >= 700;
-
-    if (isLargeScreen) {
-        // 大屏幕：不显示展开按钮
-        return false;
+// 收起标签函数 - 参考QuizView
+function collapseTags() {
+    areTagsExpanded.value = false;
+    // 滚动到顶部
+    if (contentWrapperRef.value) {
+        contentWrapperRef.value.scrollTop = 0;
     }
+}
 
-    // 小屏幕：根据标签数量和展开状态决定
-    return !areTagsExpanded.value && tagsWithCounts.value.length > 15;
-});
+// showExpandButton 现在由 ref 和 checkExpandButton 函数管理
 
 function toggleTag(tag) {
   if (tag === '全部') {
@@ -280,7 +433,7 @@ async function handleReselect() {
     </div>
 
     <div v-else class="default-view">
-      <div class="main-card">
+      <div ref="contentWrapperRef" class="main-card">
         <div class="filter-section">
           <div class="filter-group">
             <label>掌握程度</label>
@@ -300,22 +453,50 @@ async function handleReselect() {
           </div>
         </div>
 
-        <div class="tags-section" :class="{
-          'small-screen': screenHeight < 700,
-          'large-screen': screenHeight >= 700
+        <div ref="tagsSectionRef" class="tags-section" :class="{
+          'confirmed-overflow': hasOverflow,
+          'confirmed-no-overflow': !hasOverflow,
+          'expanded': areTagsExpanded && hasOverflow
         }">
           <label class="section-title">
             标签
+            <button @click="checkExpandButton" style="margin-left: 10px; padding: 2px 6px; font-size: 10px; background: #007acc; color: white; border: none; border-radius: 3px; cursor: pointer;">🔄调试</button>
             <span style="font-size: 12px; color: #999; font-weight: normal;">
-              ({{ screenHeight >= 700 ? '大屏幕' : '小屏幕' }}: {{ visibleTags.length }}/{{ tagsWithCounts.length }})
+              <br>策略: {{ displayStrategy }}, 按钮: {{ showExpandButton }}, 标签: {{ tagsWithCounts.length }}
             </span>
           </label>
-          <div class="tag-list">
+          <div
+            ref="tagListRef"
+            class="tag-list"
+            :class="{
+              'expanded': areTagsExpanded,
+              'collapsed': !areTagsExpanded && showExpandButton,
+              'small-screen': screenHeight < 700,
+              'large-screen': screenHeight >= 700
+            }"
+          >
             <button v-for="tag in visibleTags" :key="tag.name" @click="toggleTag(tag.name)" class="tag large"
                     :class="{ 'active': (tag.name === '全部' && filters.tags.length === 0) || filters.tags.includes(tag.name) }">
               {{ tag.name }} <span>{{ tag.count }}</span>
             </button>
-            <button v-if="showExpandButton" @click="areTagsExpanded = true" class="tag large expand-btn">...</button>
+          </div>
+
+          <div v-if="showExpandButton" class="expand-controls" :class="{
+            'compact': displayStrategy === 'compact-expand' || displayStrategy === 'ultra-compact'
+          }">
+            <button v-if="!areTagsExpanded" @click="areTagsExpanded = true" class="expand-btn">
+              {{ displayStrategy === 'ultra-compact' ? '更多↓' : '查看更多标签 ↓' }}
+            </button>
+            <button v-else @click="collapseTags" class="collapse-btn">
+              {{ displayStrategy === 'ultra-compact' ? '收起↑' : '收起标签 ↑' }}
+            </button>
+          </div>
+
+          <!-- 空间不足提示 -->
+          <div v-if="displayStrategy === 'no-space-hint'" class="space-hint">
+            <small style="color: #666; font-size: 11px;">
+              屏幕空间不足，显示前{{ Math.min(6, tagsWithCounts.length) }}个标签
+            </small>
           </div>
         </div>
 
@@ -392,13 +573,79 @@ async function handleReselect() {
   gap: 10px;
 }
 
-/* 大屏幕优化：增加间距 */
-.tags-section.large-screen {
-  gap: 15px;
+/* 精细的内容响应样式 - 两阶段检测法 */
+.tag-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  justify-content: flex-start;
+  transition: max-height 0.3s ease;
+  /* 不设置默认max-height，让JavaScript控制 */
 }
 
-.tags-section.large-screen .tag-list {
-  gap: 12px;
+/* 强制检测模式：用于第一阶段测量 */
+.tag-list.force-limit {
+  max-height: 80px !important;
+  overflow: hidden !important;
+}
+
+/* 确认有溢出且未展开：保持限制 */
+.tags-section.confirmed-overflow:not(.expanded) .tag-list {
+  max-height: 80px;
+  overflow: hidden;
+}
+
+/* 确认有溢出且展开：允许滚动 */
+.tags-section.confirmed-overflow.expanded .tag-list {
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+/* 确认无溢出：完全展开 */
+.tags-section.confirmed-no-overflow .tag-list {
+  max-height: none;
+  overflow: visible;
+}
+
+/* 展开控制按钮 */
+.expand-controls {
+  margin-top: 10px;
+  text-align: center;
+}
+
+/* 紧凑模式：减少按钮间距和高度 */
+.expand-controls.compact {
+  margin-top: 5px;
+}
+
+.expand-btn,
+.collapse-btn {
+  background: #f1f5f9;
+  border: 1px solid #cbd5e1;
+  color: #475569;
+  padding: 8px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: all 0.2s;
+}
+
+/* 紧凑模式按钮 */
+.expand-controls.compact .expand-btn,
+.expand-controls.compact .collapse-btn {
+  padding: 4px 12px;
+  font-size: 12px;
+}
+
+.expand-btn:hover,
+.collapse-btn:hover {
+  background: #e2e8f0;
+  color: #334155;
+}
+
+/* 当没有溢出时隐藏展开按钮 */
+.tags-section.confirmed-no-overflow .expand-controls {
+  display: none;
 }
 .section-title {
   font-weight: 600;
@@ -412,12 +659,7 @@ async function handleReselect() {
 .tags-section.large-screen .section-title {
   font-size: 16px;
 }
-.tag-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  justify-content: flex-start;
-}
+/* 重复的.tag-list规则已合并到上面 */
 .tag.large {
   font-size: 14px;
   font-weight: 500;
@@ -459,13 +701,40 @@ async function handleReselect() {
 .setting-row label { font-size: 16px; color: #333; }
 .count-input { width: 60px; text-align: center; font-size: 16px; border: 1px solid #ccc; border-radius: 8px; padding: 5px; }
 .search-input-wrapper {
-  display: flex; align-items: center; gap: 10px; background-color: #f0f2f5;
-  border-radius: 999px; padding: 0 15px; border: 1px solid #e0e0e0; cursor: pointer;
+  display: flex; 
+  align-items: center; 
+  gap: 12px; 
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 16px; 
+  padding: 0 20px; 
+  border: 2px solid #667eea; 
+  cursor: pointer;
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+  transition: all 0.3s ease;
+  margin-top: 8px;
 }
-.search-input-wrapper svg { width: 20px; height: 20px; color: #999; }
+.search-input-wrapper:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+}
+.search-input-wrapper svg { 
+  width: 22px; 
+  height: 22px; 
+  color: white; 
+  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.2));
+}
 .search-input {
-  width: 100%; border: none; background: none; padding: 10px 0;
-  font-size: 16px; color: #555; pointer-events: none;
+  width: 100%; 
+  border: none; 
+  background: none; 
+  padding: 14px 0;
+  font-size: 16px; 
+  font-weight: 500;
+  color: white; 
+  pointer-events: none;
+}
+.search-input::placeholder {
+  color: rgba(255, 255, 255, 0.9);
 }
 .search-view {
   display: flex;
