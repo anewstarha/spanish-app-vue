@@ -701,13 +701,13 @@ async function handleReselect() {
 .setting-row label { font-size: 16px; color: #333; }
 .count-input { width: 60px; text-align: center; font-size: 16px; border: 1px solid #ccc; border-radius: 8px; padding: 5px; }
 .search-input-wrapper {
-  display: flex; 
-  align-items: center; 
-  gap: 12px; 
+  display: flex;
+  align-items: center;
+  gap: 12px;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  border-radius: 16px; 
-  padding: 0 20px; 
-  border: 2px solid #667eea; 
+  border-radius: 16px;
+  padding: 0 20px;
+  border: 2px solid #667eea;
   cursor: pointer;
   box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
   transition: all 0.3s ease;
@@ -717,20 +717,20 @@ async function handleReselect() {
   transform: translateY(-2px);
   box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
 }
-.search-input-wrapper svg { 
-  width: 22px; 
-  height: 22px; 
-  color: white; 
+.search-input-wrapper svg {
+  width: 22px;
+  height: 22px;
+  color: white;
   filter: drop-shadow(0 1px 2px rgba(0,0,0,0.2));
 }
 .search-input {
-  width: 100%; 
-  border: none; 
-  background: none; 
+  width: 100%;
+  border: none;
+  background: none;
   padding: 14px 0;
-  font-size: 16px; 
+  font-size: 16px;
   font-weight: 500;
-  color: white; 
+  color: white;
   pointer-events: none;
 }
 .search-input::placeholder {
