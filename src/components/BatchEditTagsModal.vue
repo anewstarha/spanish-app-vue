@@ -1,6 +1,7 @@
 <script setup>
-import { ref, watch, onMounted } from 'vue';
+import { ref, watch } from 'vue';
 import { supabase } from '@/supabase';
+import { useUserStore } from '@/stores/userStore';
 
 const props = defineProps({
   show: Boolean,
@@ -9,13 +10,13 @@ const props = defineProps({
 });
 const emit = defineEmits(['close', 'tags-updated']);
 
-const tagsToAdd = ref('');
-const tagsToRemove = ref(new Set());
+// 替换标签的输入
+const newTagsInput = ref('');
 const commonTags = ref([]);
 const isProcessing = ref(false);
 const errorMessage = ref('');
 
-// 计算所有选中句子的共同标签
+// 计算所有选中句子的共同标签（仅用于展示信息）
 function calculateCommonTags() {
   if (!props.selectedIds || props.selectedIds.length === 0) {
     commonTags.value = [];
@@ -26,15 +27,11 @@ function calculateCommonTags() {
     commonTags.value = [];
     return;
   }
-
-  // 以第一个句子的标签为基础，找交集
   let intersection = new Set(selectedSentences[0].tags || []);
   for (let i = 1; i < selectedSentences.length; i++) {
     const currentTags = new Set(selectedSentences[i].tags || []);
     intersection.forEach(tag => {
-      if (!currentTags.has(tag)) {
-        intersection.delete(tag);
-      }
+      if (!currentTags.has(tag)) intersection.delete(tag);
     });
   }
   commonTags.value = Array.from(intersection);
@@ -42,50 +39,53 @@ function calculateCommonTags() {
 
 watch(() => props.show, (newValue) => {
   if (newValue) {
-    tagsToAdd.value = '';
-    tagsToRemove.value.clear();
+    newTagsInput.value = '';
     errorMessage.value = '';
     isProcessing.value = false;
     calculateCommonTags();
   }
 });
 
-function toggleTagToRemove(tag) {
-  if (tagsToRemove.value.has(tag)) {
-    tagsToRemove.value.delete(tag);
-  } else {
-    tagsToRemove.value.add(tag);
-  }
+function parseTags(input) {
+  return input && input.trim() ? input.trim().split(/[,，\s]+/).filter(t => t) : [];
 }
 
 async function handleSave() {
   isProcessing.value = true;
   errorMessage.value = '';
 
-  const newTags = tagsToAdd.value.trim() ? tagsToAdd.value.split(/[,，\s]+/).filter(t => t) : [];
-  const toRemove = Array.from(tagsToRemove.value);
+  const newTags = parseTags(newTagsInput.value);
 
-  if (newTags.length === 0 && toRemove.length === 0) {
-    errorMessage.value = "没有要执行的操作。";
-    isProcessing.value = false;
-    return;
+  // 如果没有提供任何标签，询问是否清空
+  if (newTags.length === 0) {
+    const shouldClear = confirm('检测到空标签，是否清空所有选中项的标签？');
+    if (!shouldClear) {
+      isProcessing.value = false;
+      return;
+    }
   }
 
   try {
-    // 调用 Supabase RPC 函数执行高效的批量更新
-    const { error } = await supabase.rpc('batch_update_tags', {
-      p_sentence_ids: props.selectedIds,
-      p_tags_to_add: newTags,
-      p_tags_to_remove: toRemove
-    });
+    // 直接将选中句子的 tags 字段替换为新的标签数组（或置为 null 以清空）
+    // 仅更新当前用户的句子以遵守 RLS
+    const userStore = useUserStore();
+    if (!userStore.user) throw new Error('未检测到登录用户');
+
+    const query = supabase
+      .from('sentences')
+      .update({ tags: newTags.length > 0 ? newTags : null })
+      .in('id', props.selectedIds)
+      .eq('user_id', userStore.user.id);
+
+    const { error } = await query;
+
     if (error) throw error;
 
     emit('tags-updated');
     emit('close');
-
-  } catch (error) {
-    console.error('批量更新标签失败:', error);
-    errorMessage.value = '更新失败：' + error.message;
+  } catch (err) {
+    console.error('批量替换标签失败:', err);
+    errorMessage.value = '更新失败：' + (err.message || err.toString());
   } finally {
     isProcessing.value = false;
   }
@@ -101,26 +101,17 @@ async function handleSave() {
       </div>
       <div class="modal-body">
         <div class="form-group">
-          <label for="tags-to-add">添加标签 (用逗号分隔)</label>
-          <input type="text" id="tags-to-add" v-model="tagsToAdd" placeholder="新标签将添加到所有选中项" :disabled="isProcessing" />
+          <label for="tags-to-replace">替换标签 (用逗号分隔)</label>
+          <input type="text" id="tags-to-replace" v-model="newTagsInput" placeholder="新的标签将覆盖所有选中项的标签" :disabled="isProcessing" />
         </div>
 
         <div v-if="commonTags.length > 0" class="form-group">
-          <label>从所有选中项中移除共同标签</label>
+          <label>选中项的共同标签（仅供参考）</label>
           <div class="common-tags-list">
-            <button
-              v-for="tag in commonTags"
-              :key="tag"
-              class="tag-btn"
-              :class="{ 'is-selected': tagsToRemove.has(tag) }"
-              @click="toggleTagToRemove(tag)"
-              :disabled="isProcessing"
-            >
-              {{ tag }}
-            </button>
+            <span v-for="tag in commonTags" :key="tag" class="tag">{{ tag }}</span>
           </div>
         </div>
-        <p v-else class="field-note">选中的句子没有共同的标签可供移除。</p>
+        <p v-else class="field-note">选中的句子没有共同的标签。</p>
 
         <p v-if="errorMessage" class="error-message">{{ errorMessage }}</p>
       </div>
