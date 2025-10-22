@@ -607,8 +607,8 @@ function replayTestAudio() {
   }
 }
 .quiz-container { display: flex; flex-direction: column; height: 100%; background-color: #f2f2f7; }
-.quiz-header { text-align: center; padding: 10px; padding-top: calc(10px + env(safe-area-inset-top)); background-color: white; border-bottom: 1px solid #e5e5e5; flex-shrink: 0; }
-.progress-text { font-weight: 600; font-size: var(--font-size-base); }
+.quiz-header { text-align: center; padding: 8px; padding-top: calc(8px + env(safe-area-inset-top)); background-color: transparent; border-bottom: none; flex-shrink: 0; }
+.progress-text { font-weight: 600; font-size: var(--font-size-base); display: inline-block; padding: 6px 12px; border-radius: 999px; background: rgba(60,60,67,0.06); color: var(--primary-text); }
 .quiz-main {
   flex-grow: 1;
   padding: var(--spacing-lg) var(--spacing-md);
@@ -634,15 +634,18 @@ function replayTestAudio() {
   flex: 1;
   cursor: pointer;
   color: #8A94A6;
-  transition: color 0.2s;
+  transition: color 0.12s;
   text-decoration: none;
 }
 .footer-nav-item.disabled { color: #e0e0e0; pointer-events: none; }
 .footer-nav-item:hover { color: #4A90E2; }
 .footer-icon {
-  width: 24px;
-  height: 24px;
-  margin-bottom: 4px; /* 与BottomNav保持一致 */
+  width: 28px;
+  height: 28px;
+  margin-bottom: 6px; /* Increased spacing */
+  background: rgba(60,60,67,0.06);
+  padding: 6px;
+  border-radius: 999px;
 }
 .footer-label {
   font-size: 11px;

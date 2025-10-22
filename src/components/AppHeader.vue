@@ -60,6 +60,20 @@ function openProfileModal() {
 .user-menu-container { position: relative; }
 .user-avatar { width: 36px; height: 36px; color: var(--secondary-text); cursor: pointer; }
 .active-avatar { color: var(--accent-blue); }
+
+/* Make avatar circular with a subtle neutral background to look like a clean button */
+.user-avatar {
+  background-color: rgba(60,60,67,0.06);
+  border-radius: 999px;
+  padding: 6px;
+  box-sizing: content-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.user-avatar:hover {
+  background-color: rgba(60,60,67,0.10);
+}
 .dropdown-menu {
   position: absolute;
   top: 100%;

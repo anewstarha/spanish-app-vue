@@ -610,10 +610,10 @@ function handleContentClick(event) {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 10px 15px;
+  padding: 8px 12px;
   flex-shrink: 0;
-  background-color: #ffffff;
-  border-bottom: 1px solid #e5e5e5;
+  background-color: transparent; /* cleaner top area */
+  border-bottom: none;
   position: sticky;
   top: 0;
   z-index: 10;
@@ -621,14 +621,25 @@ function handleContentClick(event) {
 .progress-text {
   font-size: 16px;
   font-weight: 600;
-  color: #333;
+  color: var(--primary-text);
+  display: inline-block;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(60,60,67,0.06);
 }
 .icon-btn {
-  background: none;
+  background: rgba(60,60,67,0.04);
   border: none;
   cursor: pointer;
-  padding: 5px;
+  padding: 6px;
   color: #333;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+.icon-btn:hover {
+  background: rgba(60,60,67,0.10);
 }
 .session-main {
   flex-grow: 1;

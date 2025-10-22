@@ -660,37 +660,37 @@ async function handleReselect() {
 .tag.large {
   font-size: 14px;
   font-weight: 500;
-  border: 1px solid #e0e0e0;
-  background-color: #f7f7f7;
+  border: 1px solid #e6e9ee;
+  background-color: rgba(60,60,67,0.03);
   color: var(--primary-text);
   cursor: pointer;
   border-radius: 999px;
-  padding: 6px 8px 6px 14px;
+  padding: 8px 12px;
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  transition: all 0.2s ease;
+  transition: all 0.12s ease;
 }
 .tag.large.active {
-  color: white;
-  background-color: #4A90E2;
-  border-color: #4A90E2;
+  color: #0b3a66;
+  background-color: #dff1ff; /* subtle blue tint */
+  border-color: #bfe3ff;
 }
 .tag.large span {
   font-size: 12px;
   font-weight: 600;
   color: var(--primary-text);
-  background-color: #e0e0e0;
+  background-color: #eef2f6;
   min-width: 22px;
   height: 22px;
   border-radius: 50%;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  transition: all 0.2s ease;
+  transition: all 0.12s ease;
 }
 .tag.large.active span {
-  color: #4A90E2;
+  color: #0b3a66;
   background-color: white;
 }
 .action-section { border-top: 1px solid #f0f0f0; padding-top: 20px; display: flex; flex-direction: column; gap: 15px; }
@@ -703,11 +703,11 @@ async function handleReselect() {
   gap: 12px;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   border-radius: 16px;
-  padding: 0 20px;
+  padding: 0 12px; /* reduce horizontal padding so icon looks contained */
   border: 2px solid #667eea;
   cursor: pointer;
-  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
-  transition: all 0.3s ease;
+  box-shadow: 0 4px 15px rgba(102, 126, 234, 0.16); /* soften the shadow */
+  transition: all 0.12s ease;
   margin-top: 8px;
 }
 .search-input-wrapper:hover {
@@ -715,10 +715,13 @@ async function handleReselect() {
   box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
 }
 .search-input-wrapper svg {
-  width: 22px;
-  height: 22px;
+  width: 20px;
+  height: 20px;
   color: white;
-  filter: drop-shadow(0 1px 2px rgba(0,0,0,0.2));
+  filter: none;
+  background: rgba(255,255,255,0.12); /* subtle circular background */
+  padding: 6px;
+  border-radius: 999px;
 }
 .search-input {
   width: 100%;
@@ -764,6 +767,31 @@ async function handleReselect() {
   left: 16px;
   right: 16px;
   z-index: 100;
+}
+/* Make floating button look like a clean pill/circle depending on width */
+.floating-start-button .btn {
+  width: 100%;
+  max-width: 420px;
+  margin: 0 auto;
+  border-radius: 999px;
+  padding: 12px 18px;
+  background: rgba(74,144,226,0.12);
+  color: #0b3a66;
+  font-weight: 700;
+}
+.floating-start-button .btn:hover {
+  background: rgba(74,144,226,0.18);
+}
+
+/* Pill-switch small button circular tuning */
+.pill-switch button {
+  border-radius: 999px;
+  background: transparent;
+  padding: 8px 12px;
+}
+.pill-switch button.active {
+  background: white;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.06);
 }
 .pill-switch { display: flex; background-color: #f0f2f5; border-radius: 8px; padding: 4px; }
 .pill-switch button { padding: 5px 10px; font-size: 13px; border: none; background-color: transparent; border-radius: 6px; font-weight: 500; cursor: pointer; color: #888; }
