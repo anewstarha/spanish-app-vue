@@ -296,7 +296,7 @@ $function$
 ;
 
 CREATE OR REPLACE FUNCTION public.get_user_sentences_with_progress(p_user_id uuid)
- RETURNS TABLE(id bigint, spanish_text text, chinese_translation text, tags text[], is_mastered boolean, is_studied boolean, is_public boolean)
+ RETURNS TABLE(id bigint, spanish_text text, chinese_translation text, tags text[], is_mastered boolean, is_studied boolean, is_public boolean, ai_notes jsonb)
  LANGUAGE plpgsql
  SECURITY DEFINER
  SET search_path TO 'public'
@@ -313,7 +313,8 @@ BEGIN
         s.tags,
         COALESCE(up.is_mastered, false) as is_mastered,
         (up.id IS NOT NULL) as is_studied,
-        (s.user_id = public_user_id) as is_public
+        (s.user_id = public_user_id) as is_public,
+        s.ai_notes  -- 新增字段
     FROM
         sentences s
     LEFT JOIN

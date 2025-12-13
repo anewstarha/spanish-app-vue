@@ -197,9 +197,10 @@ onMounted(async () => {
   console.log('🚀 [StudyView] onMounted 开始执行')
   window.addEventListener('resize', handleResize)
 
-  // 初始检测
-  console.log('🎬 [StudyView] 执行初始 checkExpandButton')
-  checkExpandButton()
+  // 初始检测 - 仅在非加载状态下执行
+  if (!isLoading.value) {
+    checkExpandButton()
+  }
 
   await watchUntil(() => userStore.profile !== null)
   const unfinishedSession = userStore.profile?.current_session_ids
@@ -393,8 +394,12 @@ async function startQuickStudy() {
     source.sort(() => 0.5 - Math.random())
   }
   const idsToStudy = source.slice(0, count).map((s) => s.id)
-  await studyStore.startSession(idsToStudy)
+
+  // 先跳转，让 StudySessionView 处理加载状态
   router.push({ name: 'studySession' })
+
+  // 然后开始会话 (不适用 await，让它在后台加载)
+  studyStore.startSession(idsToStudy)
 }
 
 async function startCustomStudy() {
@@ -411,13 +416,11 @@ async function handleContinueStudy() {
   // 继续未完成的学习会话
   showResumeDialog.value = false
   const sessionIds = userStore.profile?.current_session_ids || []
+  const savedProgress = userStore.profile?.current_session_progress || 0
+
   if (sessionIds.length > 0) {
-    // 使用 startSession 方法来正确初始化学习会话
-    await studyStore.startSession(sessionIds)
-    // 恢复学习进度
-    if (userStore.profile?.current_session_progress) {
-      studyStore.currentSentenceIndex = userStore.profile.current_session_progress
-    }
+    // 使用 resumeSession 而不是 startSession，以避免重置数据库中的进度
+    await studyStore.resumeSession(sessionIds, savedProgress)
     router.push({ name: 'studySession' })
   }
 }

@@ -462,8 +462,11 @@ function handleContentClick(event) {
                     ></p>
                   </div>
                 </div>
-                <p v-else-if="store.currentSentence.ai_notes">正在获取AI解释...</p>
-                <p v-else>此句子暂无AI解释。</p>
+                <div v-else-if="store.currentSentence.ai_notes && typeof store.currentSentence.ai_notes === 'string'" class="ai-raw-content">
+                  <p v-html="highlightWordsInAiContent(store.currentSentence.ai_notes)"></p>
+                </div>
+                <!-- <p v-else-if="store.currentSentence.ai_notes">正在获取AI解释...</p> -->
+                <p v-else>此句子暂无 AI 解释。</p>
               </div>
             </details>
           </div>

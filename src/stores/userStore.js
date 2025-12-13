@@ -33,6 +33,13 @@ export const useUserStore = defineStore('user', () => {
     async function updateUserProfile(dataToUpdate) {
         if (!profile.value) return;
 
+        // --- DEBUG CHECK ---
+        if (user.value && user.value.email === 'debug@example.com') {
+            console.log('🐞 [UserStore] Debug updateUserProfile:', dataToUpdate);
+            profile.value = { ...profile.value, ...dataToUpdate };
+            return;
+        }
+
         const { data, error } = await supabase
             .from('profiles')
             .update(dataToUpdate)
@@ -75,6 +82,20 @@ export const useUserStore = defineStore('user', () => {
     }
 
     // --- MODIFIED ---
-    // 之前叫 updateSessionProgress，现在改名为 updateUserProfile 并导出
-    return { user, profile, isLoggedIn, isInitialized, setUser, updateUserProfile, signUp, signIn, signOut }
+    // --- DEBUG ---
+    function debugLogin(mockProfileData = {}) {
+        user.value = { id: 'debug-user-id', email: 'debug@example.com' };
+        profile.value = {
+            id: 'debug-user-id',
+            nickname: 'Debug User',
+            current_session_ids: null,
+            current_session_progress: 0,
+            ...mockProfileData
+        };
+        isInitialized.value = true;
+        router.push('/');
+    }
+
+    // 更新导出
+    return { user, profile, isLoggedIn, isInitialized, setUser, updateUserProfile, signUp, signIn, signOut, debugLogin }
 })
